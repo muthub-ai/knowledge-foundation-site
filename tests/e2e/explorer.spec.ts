@@ -56,7 +56,9 @@ test("clicking a node opens the panel; Escape closes it", async ({ page }) => {
   await page.locator("#g-canvas").click({ position: { x, y } });
   await expect(page.locator("#g-panel h2")).toHaveText(firstNote.label);
   await expect(page).toHaveURL(/node=/);
-  await expect(page.locator("#g-panel a.open")).toHaveAttribute("href", firstNote.url);
+  // Essays open on muthub.org (the canonical essay); the wiki summary is the second link.
+  await expect(page.locator("#g-panel a.open")).toHaveAttribute("href", firstNote.canonical || firstNote.url);
+  if (firstNote.canonical) await expect(page.locator("#g-panel a.wiki")).toHaveAttribute("href", firstNote.url);
   await page.keyboard.press("Escape");
   await expect(page.locator("#g-panel")).toBeHidden();
   await expect(page).not.toHaveURL(/node=/);

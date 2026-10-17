@@ -74,9 +74,11 @@ class Stager:
             facts.append(f"Re-check by {human_day(fm['stale_after'])}")
         sources = self.b.sources_of(d)
         facts.append(f"{len(sources)} source" + ("" if len(sources) == 1 else "s"))
-        callout = [f"> [!{kind}] {title}", "> " + " · ".join(facts)]
+        callout = [f"> [!{kind}] {title}"]
         if fm.get("canonical_essay"):
-            callout += [">", f"> The full essay is on [muthub.org]({fm['canonical_essay']}); this note summarises it."]
+            # Readers came for the essay: say what this page is and send them there first, then the provenance.
+            callout += [f"> **This page summarises an essay. [Read the full essay on muthub.org →]({fm['canonical_essay']})**", ">"]
+        callout += ["> " + " · ".join(facts)]
         callout += [">", f"> [Show in graph]({self.site}/graph/?node={quote(d.rel, safe='')}) · [Markdown]({self.site}{d.url}.md)"]
 
         parts = ["\n".join(callout), body.strip()]

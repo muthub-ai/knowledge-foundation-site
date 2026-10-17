@@ -70,7 +70,7 @@ class StageFixture(unittest.TestCase):
         body = self.note.split("---\n", 2)[2]
         self.assertTrue(body.lstrip().startswith("> [!success] Reviewed by Muthu"))
         self.assertIn("**Concept** · Last verified Oct 12, 2026 · Drafted Oct 10, 2026 by llmwiki2/0.5.0 · Re-check by Apr 12, 2027 · 2 sources", self.note)
-        self.assertIn("> The full essay is on [muthub.org](https://muthub.org/writing/my-essay); this note summarises it.", self.note)
+        self.assertIn("> **This page summarises an essay. [Read the full essay on muthub.org →](https://muthub.org/writing/my-essay)**", self.note)
         self.assertIn("[Show in graph](https://wiki.muthub.org/graph/?node=governed-ai%2Fguardrails.md)", self.note)
         self.assertIn("[Markdown](https://wiki.muthub.org/governed-ai/guardrails.md)", self.note)
         self.assertIn("> [!info] Not yet reviewed", self.draft)
