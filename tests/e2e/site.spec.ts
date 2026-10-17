@@ -31,8 +31,13 @@ async function noHorizontalScroll(page: Page) {
       .filter((el) => reach(el) > vw + 1)
       .slice(-8)
       .map((el) => `${name(el)} right=${Math.round(el.getBoundingClientRect().right)} reach=${Math.round(reach(el))} ${pseudo(el)}`);
-    const box = (el: Element) => { const s = getComputedStyle(el); return `w=${s.width} m=${s.marginLeft}/${s.marginRight} ox=${s.overflowX} ${pseudo(el)}`; };
-    return { over, detail: `viewport ${vw}, html ${document.documentElement.scrollWidth} {${box(document.documentElement)}}, body ${document.body.scrollWidth} {${box(document.body)}}; ${culprits.join("; ") || "no element inside body reaches past the edge"}` };
+    const box = (el: Element) => {
+      const s = getComputedStyle(el); const r = el.getBoundingClientRect();
+      return `x=${Math.round(r.left)}..${Math.round(r.right)} w=${s.width} m=${s.marginLeft}/${s.marginRight} p=${s.paddingLeft}/${s.paddingRight} pos=${s.position} tf=${s.transform} ox=${s.overflowX} ${pseudo(el)}`;
+    };
+    const outside = [...document.documentElement.children].filter((el) => el !== document.head && el !== document.body).map(name).join(",");
+    const env = `inner=${window.innerWidth} vv=${Math.round(window.visualViewport?.width ?? 0)}x${window.visualViewport?.scale ?? 1} se=${document.scrollingElement?.tagName} sw=${document.scrollingElement?.scrollWidth} outside-body=[${outside}]`;
+    return { over, detail: `viewport ${vw}, ${env}, html ${document.documentElement.scrollWidth} {${box(document.documentElement)}}, body ${document.body.scrollWidth} {${box(document.body)}}; ${culprits.join("; ") || "no element inside body reaches past the edge"}` };
   });
   let r = await measure();
   for (let i = 0; i < 10 && r.over > 1; i++) {
