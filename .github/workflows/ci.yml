@@ -1,13 +1,12 @@
 name: ci
 
-# Builds the site from the knowledge repository's current main and tests it: unit tests, then the browser tests on
-# desktop and mobile. Branch protection on main requires this check; Vercel builds from the latest release.
+# Builds wiki.muthub.org exactly as Vercel does (Quartz 5 at quartz.ref over the knowledge repo's current main) and tests
+# it: unit tests, the explorer bundle is up to date, the browser tests on desktop and mobile. Branch protection on main
+# requires this check.
 on:
   pull_request:
   push:
     branches: [main]
-  repository_dispatch:
-    types: [knowledge-released]
 
 permissions:
   contents: read
@@ -16,33 +15,35 @@ jobs:
   test:
     name: build and test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with: { repository: muthub-ai/knowledge-foundation, path: .kf }
       - uses: actions/setup-python@v5
         with: { python-version: "3.12", cache: pip }
-      - run: pip install -r requirements.txt -r .kf/requirements.txt
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: pip install -r requirements.txt -r requirements-dev.txt -r .kf/requirements.txt
       - name: Graph from the knowledge repository
         run: PYTHONPATH=tools python -m kb graph --out dist
         working-directory: .kf
       - name: Confidential terms from the secret (written to a temp file, never printed)
         run: printf '%s\n' "$TERMS" | tr '|' '\n' > "$RUNNER_TEMP/terms.txt"
         env: { TERMS: "${{ secrets.CONFIDENTIAL_TERMS }}" }
-      - name: Unit tests (fixture bundle and the real bundle)
+      - name: Unit tests
         run: python -m unittest discover -s tests -v
         env:
           KF_BUNDLE: .kf/wiki
           KF_GRAPH: .kf/dist/graph.json
           CONFIDENTIAL_TERMS_FILE: ${{ runner.temp }}/terms.txt
-      - name: Build
-        run: python -m kfsite --bundle .kf/wiki --graph .kf/dist/graph.json --out public
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - run: npm install --no-save @playwright/test@1.56.1 && npx playwright install --with-deps chromium
-      - run: npx playwright test
-        env: { CI: "true" }
+      - name: Build with Quartz (also rebuilds the explorer from npm)
+        run: bash scripts/build.sh
+        env: { KF_BUNDLE: .kf/wiki, KF_GRAPH: .kf/dist/graph.json }
+      - run: npx playwright install --with-deps chromium
+      - name: Browser tests (Quartz pages and the graph explorer)
+        run: npx playwright test
+        env: { CI: "true", KF_QUARTZ: "1" }
       - uses: actions/upload-artifact@v4
         if: failure()
         with: { name: playwright-report, path: playwright-report, retention-days: 7 }

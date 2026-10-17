@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Graph · Knowledge Foundation</title>
+<meta name="description" content="An interactive map of the Knowledge Foundation notes, their sources and how they connect.">
+<link rel="canonical" href="https://wiki.muthub.org/graph/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/graph/explorer.css">
+<script src="/graph/theme.js"></script>
+</head>
+<body>
+<a class="skip" href="#g-search">Skip to the graph search</a>
+<header class="bar">
+  <a class="brand" href="/">Knowledge Foundation</a>
+  <nav aria-label="Main">
+    <a href="/">Notes</a>
+    <a href="https://muthub.org/writing">Essays</a>
+    <button class="theme-toggle" type="button" aria-label="Toggle dark mode">◐</button>
+  </nav>
+</header>
+<main class="explorer" id="explorer">
+  <h1 class="sr">Graph</h1>
+  <div class="toolbar">
+    <label class="sr" for="g-search">Find a note</label>
+    <input id="g-search" type="search" placeholder="Find a note" autocomplete="off" list="g-names">
+    <datalist id="g-names"></datalist>
+    <details class="filters"><summary>Filters</summary>
+      <fieldset id="f-types"><legend>Node types</legend></fieldset>
+      <fieldset id="f-origins"><legend>Connections</legend></fieldset>
+    </details>
+    <button id="g-view" type="button" aria-pressed="false">List view</button>
+    <button id="g-reset" type="button">Reset</button>
+  </div>
+  <div id="g-canvas" class="g-canvas" role="img" aria-label="Knowledge graph. Use the list view for a text version."></div>
+  <div id="g-list" class="g-list" hidden></div>
+  <aside id="g-panel" class="g-panel" hidden aria-live="polite"></aside>
+  <div class="zoom" role="group" aria-label="Zoom">
+    <button id="g-zoom-in" type="button" aria-label="Zoom in">+</button>
+    <button id="g-zoom-out" type="button" aria-label="Zoom out">−</button>
+    <button id="g-fit" type="button" aria-label="Fit the whole graph">⤢</button>
+  </div>
+  <p id="g-status" class="g-status" aria-live="polite"></p>
+  <noscript><p class="g-status">The graph needs JavaScript. <a href="/graph.json">The graph data</a> is available as JSON.</p></noscript>
+</main>
+<script src="/graph/explorer.js" defer></script>
+</body>
+</html>

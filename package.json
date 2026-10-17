@@ -1,0 +1,19 @@
+{
+  "name": "knowledge-foundation-site",
+  "private": true,
+  "type": "module",
+  "description": "wiki.muthub.org: Quartz 5 over the Knowledge Foundation bundle, with a Sigma.js graph explorer",
+  "scripts": {
+    "build": "bash scripts/build.sh",
+    "build:explorer": "node scripts/build_explorer.mjs",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "esbuild": "0.28.2",
+    "events": "3.3.0",
+    "graphology": "0.26.0",
+    "sigma": "4.0.3"
+  },
+  "engines": { "node": ">=22" }
+}

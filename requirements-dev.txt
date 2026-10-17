@@ -1,0 +1,1 @@
+Markdown==3.10.3   # tests/fake_quartz.py only

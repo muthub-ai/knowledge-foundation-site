@@ -2,24 +2,28 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "python3 -m pip install -r requirements.txt",
-  "buildCommand": "python3 -m kfsite --out public",
+  "buildCommand": "bash scripts/build.sh",
   "outputDirectory": "public",
-  "cleanUrls": false,
-  "trailingSlash": true,
+  "cleanUrls": true,
+  "trailingSlash": false,
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
-        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains" }
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains" },
+        { "key": "X-Frame-Options", "value": "DENY" }
+      ]
+    },
+    {
+      "source": "/graph/(.*)",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'" }
       ]
     },
     { "source": "/(.*)\\.md", "headers": [ { "key": "X-Robots-Tag", "value": "noindex" }, { "key": "Content-Type", "value": "text/markdown; charset=utf-8" } ] },
-    { "source": "/raw/(.*)", "headers": [ { "key": "X-Robots-Tag", "value": "noindex" } ] },
-    { "source": "/graph.json", "headers": [ { "key": "Access-Control-Allow-Origin", "value": "*" } ] },
-    { "source": "/static/(.*)", "headers": [ { "key": "Cache-Control", "value": "public, max-age=3600" } ] }
+    { "source": "/graph.json", "headers": [ { "key": "Access-Control-Allow-Origin", "value": "*" } ] }
   ]
 }
