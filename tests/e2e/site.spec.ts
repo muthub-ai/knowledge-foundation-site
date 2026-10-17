@@ -67,6 +67,8 @@ test("a note page shows the provenance callout, sources and JSON-LD", async ({ p
   // Frontmatter is parsed, not printed: the note's own title, and no raw YAML in the article.
   await expect(page).toHaveTitle(new RegExp("^" + n.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   await expect(page.locator("article")).not.toContainText(/^\s*(title|type|okf_version):/m);
+  // Footnote references resolve (a dangling one renders as a lone "[").
+  await expect(page.locator("article")).not.toContainText(/\[\^|[.\w]\[(\s|$)/);
   await expect(page.locator("article .callout").first()).toContainText(/Reviewed by Muthu|Not yet reviewed|Machine-confirmed/);
   await expect(page.locator("article")).toContainText("Sources");
   const ld = JSON.parse((await page.locator('script[data-kf="jsonld"]').textContent())!);

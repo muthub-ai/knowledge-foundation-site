@@ -82,6 +82,9 @@ class StageFixture(unittest.TestCase):
         body = "# Overview\n\nSummary.\n\n# Read the original\n\nThe full note is on muthub.org: [x](https://muthub.org/x).\n\n# See also\n\n- y\n"
         self.assertEqual(READ_ORIGINAL.sub("", body), "# Overview\n\nSummary.\n\n# See also\n\n- y\n")
         self.assertEqual(READ_ORIGINAL.sub("", "# Overview\n\nA.\n\n# Read the original\n\nLink.\n"), "# Overview\n\nA.\n")
+        # Footnote definitions after the section stay, or the [^s1] reference in the body would dangle.
+        self.assertEqual(READ_ORIGINAL.sub("", "# Overview\n\nA.[^s1]\n\n# Read the original\n\nLink.\n\n[^s1]: Src.\n"),
+                         "# Overview\n\nA.[^s1]\n\n[^s1]: Src.\n")
 
     def test_links(self):
         self.assertIn("[the context layer](/context-engineering/context-layer#why)", self.note)

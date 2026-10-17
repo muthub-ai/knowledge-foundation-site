@@ -28,7 +28,7 @@ CALLOUT = {"human-reviewed": ("success", "Reviewed by Muthu"), "machine-confirme
            "unverified": ("info", "Not yet reviewed")}
 # What a note with canonical_essay summarises, by kind (the page on muthub.org is the real thing).
 CANONICAL_THING = {"Initiative": "case study", "Playbook": "playbook"}
-READ_ORIGINAL = re.compile(r"(?:^|\n)# Read the original\n[\s\S]*?(?=\n# |\Z)")
+READ_ORIGINAL = re.compile(r"(?:^|\n)# Read the original\n[\s\S]*?(?=\n# |\n\[\^[^\]\n]+\]:|\Z)")  # keeps footnotes
 
 
 def _dump(fm: dict[str, Any]) -> str:
