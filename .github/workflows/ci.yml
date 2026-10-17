@@ -18,8 +18,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with: { repository: muthub-ai/knowledge-foundation, path: .kf }
+      # The knowledge repository's main, or (only while that is still empty) its first pull-request branch.
+      - name: The knowledge repository
+        run: |
+          git clone --quiet --depth 1 https://github.com/muthub-ai/knowledge-foundation .kf
+          if [ ! -d .kf/wiki ]; then git -C .kf fetch --quiet --depth 1 origin claude/initial-build && git -C .kf checkout --quiet FETCH_HEAD; fi
       - uses: actions/setup-python@v5
         with: { python-version: "3.12", cache: pip }
       - uses: actions/setup-node@v4
@@ -32,17 +35,17 @@ jobs:
         run: printf '%s\n' "$TERMS" | tr '|' '\n' > "$RUNNER_TEMP/terms.txt"
         env: { TERMS: "${{ secrets.CONFIDENTIAL_TERMS }}" }
       - name: Unit tests
-        run: python -m unittest discover -s tests -v
+        run: bash .github/ci-run.sh "unit tests" python -m unittest discover -s tests -v
         env:
           KF_BUNDLE: .kf/wiki
           KF_GRAPH: .kf/dist/graph.json
           CONFIDENTIAL_TERMS_FILE: ${{ runner.temp }}/terms.txt
       - name: Build with Quartz (also rebuilds the explorer from npm)
-        run: bash scripts/build.sh
+        run: bash .github/ci-run.sh "build" bash scripts/build.sh
         env: { KF_BUNDLE: .kf/wiki, KF_GRAPH: .kf/dist/graph.json }
       - run: npx playwright install --with-deps chromium
       - name: Browser tests (Quartz pages and the graph explorer)
-        run: npx playwright test
+        run: bash .github/ci-run.sh "browser tests" npx playwright test
         env: { CI: "true", KF_QUARTZ: "1" }
       - uses: actions/upload-artifact@v4
         if: failure()
