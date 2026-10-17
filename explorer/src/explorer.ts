@@ -40,6 +40,7 @@ const T = (ms: number) => (REDUCE ? 0 : ms);
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const container = $("g-canvas"), panel = $("g-panel"), statusEl = $("g-status"), listEl = $("g-list");
 const viewBtn = $<HTMLButtonElement>("g-view"), search = $<HTMLInputElement>("g-search"), suggest = $("g-suggest"), legend = $("g-legend");
+const emptyEl = $("g-empty"), announcer = $("g-announce"), toolbar = document.querySelector<HTMLElement>(".toolbar")!;
 
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const isExternal = (url: string) => /^https?:\/\//.test(url);
@@ -80,9 +81,11 @@ function tick(now: number) {
     tw.set(tw.from + (tw.to - tw.from) * tw.ease(p));
     if (p >= 1) { tweens.delete(key); tw.done?.(); }
   }
-  if (selected && !REDUCE) renderer?.setGraphState({ pulse: (Math.sin(now / 520) + 1) / 2 });
+  // The selected note's halo pulses while the panel is open and the tab is visible.
+  const pulsing = !!selected && !REDUCE && !document.hidden;
+  if (pulsing) renderer?.setGraphState({ pulse: (Math.sin(now / 520) + 1) / 2 });
   renderer?.refresh({ skipIndexation: true });
-  if (tweens.size || (selected && !REDUCE)) raf = requestAnimationFrame(tick);
+  if (tweens.size || pulsing) raf = requestAnimationFrame(tick);
 }
 const kick = () => { if (!raf) raf = requestAnimationFrame(tick); };
 
@@ -97,6 +100,8 @@ function paint() {
   graph.updateEachNodeAttributes((n, a: any) => ({
     ...a, color: a.kind === "Source" ? muted : colourOf(n), labelColor: ink, page,
     halo: hexA(colourOf(n).startsWith("#") ? colourOf(n) : "#888888", isDark() ? 0.75 : 0.55),
+    ring: hexA(colourOf(n).startsWith("#") ? colourOf(n) : "#888888", isDark() ? 0.35 : 0.22),
+    pill: hexA(page.startsWith("#") ? page : "#ffffff", isDark() ? 0.82 : 0.9), pillLine: isDark() ? "rgba(255,255,255,0.10)" : "rgba(21,23,28,0.08)",
   }));
   graph.updateEachEdgeAttributes((_e, a: any, s) => {
     const c = colourOf(s);
@@ -163,16 +168,16 @@ function layout(nodes: GNode[], edges: GEdge[]) {
       if (!vx && !vy) { vx = h.x; vy = h.y; }
       return Math.atan2(vy, vx);
     };
-    const r1 = 19 + 1.15 * ids.length, cap = Math.max(6, Math.floor((TAU * r1) / 7.5));
+    // Slots run round the hub except for a gap straight below it, where the theme's name sits (+y is down on screen).
+    const GAP = 0.62, A0 = Math.PI / 2 + GAP, ARC = TAU - 2 * GAP;
+    const r1 = Math.max(30, 19 + 1.15 * ids.length), cap = Math.max(6, Math.floor((ARC * r1) / 7.5));
+    const along = (p: number) => (((p - A0) % TAU) + TAU) % TAU; // a note's preferred angle, measured along the arc
     for (let ringNo = 0, start = 0; start < ids.length; ringNo++, start += cap) {
-      const chunk = ids.slice(start, start + cap).map((id) => ({ id, p: pref(id) })).sort((a, b) => a.p - b.p);
-      const r = r1 + ringNo * 9, step = TAU / chunk.length;
-      // Rotate the evenly spaced slots so they line up, on average, with each note's preferred direction.
-      let sx = 0, sy = 0;
-      chunk.forEach((c, i) => { sx += Math.cos(c.p - i * step); sy += Math.sin(c.p - i * step); });
-      const off = Math.atan2(sy, sx) + (ringNo % 2 ? step / 2 : 0);
+      // Ordered by preferred direction, so each note lands near the side facing the themes it links to.
+      const chunk = ids.slice(start, start + cap).map((id) => ({ id, p: along(pref(id)) })).sort((a, b) => a.p - b.p);
+      const r = r1 + ringNo * 9, step = ARC / chunk.length;
       chunk.forEach((c, i) => {
-        const a = off + i * step;
+        const a = A0 + (i + 0.5) * step;
         pos[c.id] = { x: h.x + Math.cos(a) * r, y: h.y + Math.sin(a) * r, side: Math.cos(a) < 0 ? "left" : "right" };
       });
     }
@@ -253,7 +258,16 @@ function visibleNodes() { return graph.filterNodes((n) => !renderer.getNodeState
 function visibleEdges() { return graph.filterEdges((e) => !renderer.getEdgeState(e).isHidden); }
 
 function updateStatus(message?: string) {
-  statusEl.textContent = message ?? `${visibleNodes().length} nodes · ${visibleEdges().length} connections shown`;
+  if (!renderer) { statusEl.textContent = message ?? ""; return; }
+  const n = visibleNodes().length;
+  statusEl.textContent = message ?? `${n} nodes · ${visibleEdges().length} connections shown`;
+  emptyEl.hidden = n > 0 || !listEl.hidden;
+}
+const announce = (text: string) => { announcer.textContent = text; };
+// Colours set through the CSSOM rather than style="" attributes, so /graph/'s CSP needs no 'unsafe-inline'.
+function applyColours(root: HTMLElement) {
+  root.querySelectorAll<HTMLElement>("[data-bg]").forEach((el) => (el.style.background = el.dataset.bg!));
+  root.querySelectorAll<HTMLElement>("[data-c]").forEach((el) => el.style.setProperty("--c", el.dataset.c!));
 }
 
 function buildFilters(nodes: GNode[], edges: GEdge[]) {
@@ -266,6 +280,8 @@ function buildFilters(nodes: GNode[], edges: GEdge[]) {
     `<label><input type="checkbox" value="${esc(o)}"> ${esc(ORIGIN_LABEL[o])} <span class="muted">${origins[o]}</span></label>`).join(""));
   document.querySelectorAll<HTMLInputElement>("#f-types input").forEach((i) => i.addEventListener("change", () => {
     i.checked ? offTypes.delete(i.value) : offTypes.add(i.value);
+    // Source nodes only connect through "source" edges: show and hide them together.
+    if (i.value === "Source") i.checked ? offOrigins.delete("source") : offOrigins.add("source");
     applyFilters();
     applyFocus();
   }));
@@ -282,55 +298,103 @@ function buildLegend() {
     `<p class="legend-title">Themes</p><ul>` +
     themes.map((t) => `<li><button type="button" data-theme="${esc(t)}" aria-pressed="false"><span class="dot" data-theme-dot="${esc(t)}"></span>${esc(byId[t].label)}<span class="muted">${count(t)}</span></button></li>`).join("") +
     `</ul><p class="legend-shapes" aria-label="Shapes"><span><span class="shape shape-circle"></span>Essay</span><span><span class="shape shape-diamond"></span>Initiative</span><span><span class="shape shape-square"></span>Playbook</span></p>`;
+  legend.hidden = false;
   legend.querySelectorAll<HTMLButtonElement>("[data-theme]").forEach((b) => b.addEventListener("click", () => {
     const t = b.dataset.theme!;
-    if (focusTheme === t) { focusTheme = null; applyFocus(); fitAll(); return; }
+    if (focusTheme === t) { clearThemeFocus(); return; }
     focusTheme = t;
     if (selected) closePanel(false);
     applyFocus();
     fitNodes([...(activeSet() || [])]);
+    announce(`Showing the ${byId[t].label} theme. Escape to leave.`);
+    updateStatus(`${byId[t].label} · ${(activeSet()?.size ?? 1) - 1} notes · Esc to leave`);
   }));
+}
+function clearThemeFocus() {
+  if (!focusTheme) return;
+  focusTheme = null;
+  applyFocus();
+  updateStatus();
+  fitAll();
 }
 
 // -- camera ----------------------------------------------------------------------------------------------------------
 function fitAll() { renderer.getCamera().animate({ x: 0.5, y: 0.5, ratio: 1, angle: 0 }, { duration: T(650), easing: "cubicInOut" }); }
-function fitNodes(ids: string[], opts: { maxRatio?: number; besidePanel?: boolean } = {}) {
+const NARROW = () => container.clientWidth <= 760;
+/**
+ * Frame some nodes, leaving room for the chrome: on wide screens the legend (left) and the panel (right) take space,
+ * so the camera shifts to centre the nodes between them; on narrow screens the panel is a bottom sheet, so the nodes
+ * go in the upper part. With `centre`, that node is kept at the centre and the zoom still fits the others.
+ */
+function fitNodes(ids: string[], opts: { maxRatio?: number; besidePanel?: boolean; centre?: string } = {}) {
   const pts = ids.map((id) => renderer.getNodeDisplayData(id)).filter(Boolean);
   if (!pts.length) return;
   const xs = pts.map((p: any) => p.x), ys = pts.map((p: any) => p.y);
   const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-  const ratio = Math.min(opts.maxRatio ?? 1, Math.max(0.25, Math.max(x1 - x0, y1 - y0) * 1.35));
-  // With the panel open on a wide screen, centre the nodes in the space left of it.
-  const w = container.clientWidth, shift = opts.besidePanel && w > 760 ? ((panel.offsetWidth + 28) / 2 / w) * ratio : 0;
-  renderer.getCamera().animate({ x: (x0 + x1) / 2 + shift, y: (y0 + y1) / 2, ratio }, { duration: T(700), easing: "cubicInOut" });
+  const c = opts.centre ? renderer.getNodeDisplayData(opts.centre) : null;
+  const cx = c ? c.x : (x0 + x1) / 2, cy = c ? c.y : (y0 + y1) / 2;
+  const span = c ? 2 * Math.max(cx - x0, x1 - cx, cy - y0, y1 - cy) : Math.max(x1 - x0, y1 - y0);
+  const ratio = Math.min(opts.maxRatio ?? 1, Math.max(0.25, span * 1.25));
+  const w = container.clientWidth || 1, h = container.clientHeight || 1;
+  let dx = 0, dy = 0;
+  if (!NARROW()) {
+    if (opts.besidePanel && !panel.hidden) dx += ((panel.offsetWidth + 28) / 2 / w) * ratio;
+    if (!legend.hidden && legend.offsetParent) dx -= ((legend.offsetWidth + 28) / 2 / w) * ratio;
+  } else if (opts.besidePanel && !panel.hidden) {
+    dy -= ((panel.offsetHeight / 2) / h) * ratio; // graph y grows upward: lower the camera to lift the nodes
+  }
+  renderer.getCamera().animate({ x: cx + dx, y: cy + dy, ratio }, { duration: T(700), easing: "cubicInOut" });
 }
 
 // -- side panel ------------------------------------------------------------------------------------------------------
-function relLabel(r: string) { return String(r).replace(/_/g, " "); }
+const REL_LABEL: Record<string, string> = {
+  links_to: "", builds_on: "builds on", refines: "refines", applies: "applies", contradicts: "contradicts", cites: "cites",
+  part_of: "part of", supersedes: "supersedes", answers: "answers", about: "about", authored_by: "authored by", mentions: "mentions",
+};
+function relLabel(r: string) { return REL_LABEL[r] ?? String(r).replace(/_/g, " "); }
 function openPanel(id: string) {
   selected = id;
   focusTheme = null;
   const n = byId[id];
   const colour = graph.getNodeAttribute(id, "color");
-  const groups: Record<string, string[]> = {};
-  const add = (key: string, other: string) => {
-    (groups[key] ||= []).push(`<li><a href="#" data-id="${esc(other)}"><span class="dot" style="background:${esc(graph.getNodeAttribute(other, "color"))}"></span>${esc(byId[other].label)}</a></li>`);
+  // One list per kind of connection; a note linked both ways appears once with ⇄. Theme membership is in the kicker.
+  const GROUP: Record<string, string> = { link: "Linked notes", frontmatter: "Linked notes", source: n.type === "Source" ? "Notes drawn from it" : "Sources", folder: n.type === "Theme" ? "Notes in this theme" : "", extracted: "Mentions" };
+  const rows: Record<string, Map<string, { out: boolean; inn: boolean; rel: Set<string> }>> = {};
+  const add = (a: any, other: string, out: boolean, e: string) => {
+    const g = GROUP[a.origin] ?? "Other connections";
+    if (!g || renderer.getEdgeState(e).isHidden) return;
+    const m = (rows[g] ||= new Map());
+    const r = m.get(other) || { out: false, inn: false, rel: new Set<string>() };
+    out ? (r.out = true) : (r.inn = true);
+    if (relLabel(a.rel)) r.rel.add(relLabel(a.rel));
+    m.set(other, r);
   };
-  graph.forEachOutEdge(id, (e, a: any, _s, t) => { if (!renderer.getEdgeState(e).isHidden) add(`Points to · ${relLabel(a.rel)}`, t); });
-  graph.forEachInEdge(id, (e, a: any, s) => { if (!renderer.getEdgeState(e).isHidden) add(`Pointed to by · ${relLabel(a.rel)}`, s); });
+  graph.forEachOutEdge(id, (e, a: any, _s, t) => add(a, t, true, e));
+  graph.forEachInEdge(id, (e, a: any, s) => add(a, s, false, e));
+  const ORDER = ["Notes in this theme", "Linked notes", "Sources", "Notes drawn from it", "Mentions", "Other connections"];
+  const glyph = (r: { out: boolean; inn: boolean }) => (r.out && r.inn ? "⇄" : r.out ? "→" : "←");
+  const glyphTitle = (r: { out: boolean; inn: boolean }) => (r.out && r.inn ? "Linked both ways" : r.out ? "This note links to it" : "It links to this note");
+  const lists = ORDER.filter((g) => rows[g]?.size).map((g) => {
+    const items = [...rows[g]].sort((a, b) => byId[a[0]].label.localeCompare(byId[b[0]].label)).map(([other, r]) =>
+      `<li><a href="#" data-id="${esc(other)}"><span class="dot" data-bg="${esc(graph.getNodeAttribute(other, "color"))}"></span><span class="t">${esc(byId[other].label)}</span>${r.rel.size ? `<span class="rel muted">${esc([...r.rel].join(", "))}</span>` : ""}` +
+      (g === "Linked notes" ? `<span class="dir" title="${glyphTitle(r)}" aria-label="${glyphTitle(r)}">${glyph(r)}</span>` : "") + `</a></li>`);
+    return `<h3>${esc(g)} <span class="muted">${items.length}</span></h3><ul>${items.join("")}</ul>`;
+  });
   const meta = n.type !== "Source" && n.type !== "Theme"
     ? `<p class="meta"><span class="badge ${n.trust === "human-reviewed" ? "ok" : ""}">${esc(trustLabel(n.trust))}</span>${n.updated ? `<span class="muted">Updated ${esc(n.updated)}</span>` : ""}</p>` : "";
   panel.innerHTML =
-    `<div class="accent" style="background:${esc(colour)}"></div>` +
+    `<div class="accent" data-bg="${esc(colour)}"></div>` +
     `<button class="close" type="button" aria-label="Close">×</button>` +
-    `<p class="kind"><span class="shape shape-${esc(SHAPE[n.type] || "circle")}" style="--c:${esc(colour)}"></span>${esc(n.type)}${themeOf[id] ? ` · ${esc(byId[themeOf[id]].label)}` : ""}</p>` +
-    `<h2>${esc(n.label)}</h2>` + (n.summary ? `<p class="summary">${esc(n.summary)}</p>` : "") + meta +
+    `<p class="kind"><span class="shape shape-${esc(SHAPE[n.type] || "circle")}" data-c="${esc(colour)}"></span>${esc(n.type)}${themeOf[id] ? ` · ${esc(byId[themeOf[id]].label)}` : ""}</p>` +
+    `<h2 tabindex="-1">${esc(n.label)}</h2>` + (n.summary ? `<p class="summary">${esc(n.summary)}</p>` : "") + meta +
     (n.canonical
       ? `<p class="actions"><a class="open" href="${esc(n.canonical)}">Read on muthub.org <span aria-hidden="true">→</span></a><a class="wiki" href="${esc(n.url)}">Wiki summary</a></p>`
       : `<p class="actions"><a class="open" href="${esc(n.url)}">${isExternal(n.url) ? "Open source" : n.type === "Theme" ? "Open theme" : "Open note"} <span aria-hidden="true">→</span></a></p>`) +
-    Object.keys(groups).sort().map((g) => `<h3>${esc(g)} <span class="muted">${groups[g].length}</span></h3><ul>${groups[g].join("")}</ul>`).join("");
+    lists.join("");
+  applyColours(panel);
   panel.hidden = false;
   panel.classList.remove("in"); void panel.offsetWidth; panel.classList.add("in");
+  announce(`Selected ${n.type}: ${n.label}`);
   const url = new URL(location.href);
   url.searchParams.set("node", id);
   history.replaceState(null, "", url);
@@ -346,12 +410,17 @@ function closePanel(refocus = true) {
   if (refocus) applyFocus();
 }
 
-function focusNode(id: string) {
+function focusNode(id: string, opts: { moveFocus?: boolean } = {}) {
   const kind = graph.getNodeAttribute(id, "kind");
-  if (offTypes.has(kind)) { offTypes.delete(kind); applyFilters(); }
+  if (offTypes.has(kind)) { offTypes.delete(kind); if (kind === "Source") offOrigins.delete("source"); applyFilters(); }
   openPanel(id);
-  // Frame the note with its neighbourhood (never wider than 85% of the map, so picking a note always zooms in).
-  fitNodes([...(activeSet() || [id])], { maxRatio: 0.85, besidePanel: true });
+  // Centre the note and zoom to show its neighbourhood (never wider than 85% of the map, so it always zooms in). A
+  // note with few neighbours also shows its theme, so the reader keeps context.
+  const near = [...(activeSet() || [id])];
+  const t = themeOf[id];
+  const frame = near.length < 4 && t ? [...near, t, ...graph.filterNodes((n) => themeOf[n] === t && !renderer.getNodeState(n).isHidden)] : near;
+  fitNodes(frame, { maxRatio: near.length < 4 ? 0.6 : 0.85, besidePanel: true, centre: id });
+  if (opts.moveFocus) panel.querySelector<HTMLElement>("h2")?.focus({ preventScroll: true });
 }
 
 panel.addEventListener("click", (ev) => {
@@ -373,8 +442,10 @@ let pick = -1;
 function renderSuggest() {
   const hits = matches(search.value).slice(0, 7);
   pick = -1;
+  search.removeAttribute("aria-activedescendant");
   if (!hits.length || document.activeElement !== search) { suggest.hidden = true; search.setAttribute("aria-expanded", "false"); return; }
-  suggest.innerHTML = hits.map((n, i) => `<li role="option" id="g-opt-${i}" data-id="${esc(n.id)}"><span class="dot" style="background:${esc(graph.getNodeAttribute(n.id, "color"))}"></span>${esc(n.label)}<span class="muted">${esc(n.type)}</span></li>`).join("");
+  suggest.innerHTML = hits.map((n, i) => `<li role="option" id="g-opt-${i}" data-id="${esc(n.id)}"><span class="dot" data-bg="${esc(graph.getNodeAttribute(n.id, "color"))}"></span>${esc(n.label)}<span class="muted">${esc(n.type)}</span></li>`).join("");
+  applyColours(suggest);
   suggest.hidden = false;
   search.setAttribute("aria-expanded", "true");
 }
@@ -382,13 +453,13 @@ function movePick(d: number) {
   const items = [...suggest.querySelectorAll("li")];
   if (!items.length) return;
   pick = (pick + d + items.length) % items.length;
-  items.forEach((li, i) => li.classList.toggle("on", i === pick));
+  items.forEach((li, i) => { li.classList.toggle("on", i === pick); li.setAttribute("aria-selected", String(i === pick)); });
   search.setAttribute("aria-activedescendant", items[pick].id);
 }
 function runSearch() {
   const chosen = pick >= 0 ? suggest.querySelectorAll("li")[pick]?.getAttribute("data-id") : findByLabel(search.value);
   suggest.hidden = true;
-  if (chosen) { updateStatus(); focusNode(chosen); } else updateStatus(`No note matches “${search.value}”.`);
+  if (chosen) { updateStatus(); focusNode(chosen, { moveFocus: true }); } else updateStatus(`No note matches “${search.value}”.`);
 }
 search.addEventListener("input", renderSuggest);
 search.addEventListener("focus", renderSuggest);
@@ -397,7 +468,7 @@ search.addEventListener("keydown", (ev) => {
   if (ev.key === "Enter") { ev.preventDefault(); runSearch(); }
   else if (ev.key === "ArrowDown") { ev.preventDefault(); movePick(1); }
   else if (ev.key === "ArrowUp") { ev.preventDefault(); movePick(-1); }
-  else if (ev.key === "Escape") { suggest.hidden = true; }
+  else if (ev.key === "Escape" && !suggest.hidden) { suggest.hidden = true; ev.stopPropagation(); }
 });
 suggest.addEventListener("mousedown", (ev) => {
   const li = (ev.target as HTMLElement).closest("li");
@@ -411,11 +482,17 @@ function renderList() {
     `<tr><td><a href="${esc(primaryUrl(n))}">${esc(n.label)}</a></td><td>${esc(n.type)}</td><td>${themeOf[n.id] ? esc(byId[themeOf[n.id]].label) : ""}</td><td>${n.degree || 0}</td><td>${esc(n.summary)}</td></tr>`);
   listEl.innerHTML = `<table><caption class="sr">Nodes in the graph</caption><thead><tr><th>Name</th><th>Type</th><th>Theme</th><th>Connections</th><th>Summary</th></tr></thead><tbody>${rows.join("")}</tbody></table>`;
 }
+function placeList() { listEl.style.top = `${toolbar.offsetTop + toolbar.offsetHeight + 10}px`; }
+addEventListener("resize", () => { if (!listEl.hidden) placeList(); });
 viewBtn.addEventListener("click", () => {
   const on = listEl.hidden;
+  if (on && selected) closePanel(false);
   listEl.hidden = !on;
+  if (on) placeList();
+  $("explorer").classList.toggle("listing", on);
   container.style.visibility = on ? "hidden" : "visible";
   legend.style.visibility = on ? "hidden" : "visible";
+  updateStatus();
   viewBtn.setAttribute("aria-pressed", String(on));
   viewBtn.textContent = on ? "Graph view" : "List view";
   renderList();
@@ -435,10 +512,11 @@ $("g-zoom-out").addEventListener("click", () => renderer.getCamera().zoomOut({ d
 $("g-fit").addEventListener("click", fitAll);
 document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape" && selected) closePanel();
-  else if (ev.key === "Escape" && focusTheme) { focusTheme = null; applyFocus(); }
+  else if (ev.key === "Escape" && focusTheme) clearThemeFocus();
   else if (ev.key === "/" && document.activeElement !== search && !(ev.target as HTMLElement).closest("input,textarea")) { ev.preventDefault(); search.focus(); }
 });
 document.addEventListener("themechange", paint);
+document.addEventListener("visibilitychange", kick);
 
 // -- entrance: the graph assembles from its themes -------------------------------------------------------------------
 function entrance(done: () => void) {
@@ -483,6 +561,8 @@ function entrance(done: () => void) {
 }
 
 // -- start -----------------------------------------------------------------------------------------------------------
+updateStatus("Loading the map…");
+$("g-empty-reset").addEventListener("click", () => $("g-reset").click());
 fetch("/graph.json")
   .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
   .then((g: { nodes: GNode[]; edges: GEdge[] }) => {
@@ -516,11 +596,11 @@ fetch("/graph.json")
     renderer = new Sigma(graph as any, container, {
       settings: {
         itemSizesReference: "screen", labelFont: "Instrument Sans, system-ui, sans-serif", labelDensity: 0.4,
-        labelRenderedSizeThreshold: 11, stagePadding: 48, zIndex: true, hideEdgesOnMove: false,
+        labelRenderedSizeThreshold: 11, stagePadding: 48, zIndex: true, hideEdgesOnMove: false, minCameraRatio: 0.12, maxCameraRatio: 1.4,
       } as any,
       primitives: {
         nodes: { shapes: [sdfCircle(), sdfDiamond({ cornerRadius: 0.12 }), sdfSquare({ cornerRadius: 0.28 }), sdfTriangle({ cornerRadius: 0.15 })], layers: [layerFill()] },
-        edges: { paths: [pathLine(), pathCurved({ curvature: 0.22 })], extremities: [extremityArrow({ lengthRatio: 3.2, widthRatio: 2.6 })], layers: [layerPlain()] },
+        edges: { paths: [pathLine(), pathCurved({ curvature: 0.22 })], extremities: [extremityArrow({ lengthRatio: 4.5, widthRatio: 3.2 })], layers: [layerPlain()] },
       } as any,
       customNodeState: { isActive: false },
       customEdgeState: { isActive: false },
@@ -537,20 +617,29 @@ fetch("/graph.json")
           {
             when: (a: any) => a.kind === "Theme",
             then: {
-              labelVisibility: "visible", labelSize: Math.round(15 * Math.max(0.8, SIZE_SCALE)), labelFont: "Newsreader, Georgia, serif",
-              backdropVisibility: "visible", backdropArea: "label", backdropLabelPadding: 5, backdropShadowBlur: 6, backdropCornerRadius: 8,
+              // Shown once the hub has popped in (during the entrance its size starts at 0).
+              labelVisibility: (a: any) => ((a.size || 0) > 8 * SIZE_SCALE ? "visible" : "hidden"),
+              backdropVisibility: (a: any) => ((a.size || 0) > 8 * SIZE_SCALE ? "visible" : "hidden"),
+              labelSize: Math.round(15 * Math.max(0.8, SIZE_SCALE)), labelFont: "Newsreader, Georgia, serif",
+              backdropArea: "label", backdropLabelPadding: 5, backdropShadowBlur: 6, backdropCornerRadius: 8,
+              backdropColor: { attribute: "pill" }, backdropBorderColor: { attribute: "pillLine" }, backdropBorderWidth: 1,
             },
           },
           { when: (_a: any, s: any, gs: any) => dimmed(s, gs) && (gs.fade ?? 0) > 0.5, then: { labelVisibility: "hidden", backdropVisibility: "hidden" } },
-          // Neighbours' labels go through sigma's collision check ("auto"); the hovered and selected ones always show.
-          { whenState: "isActive", then: { labelVisibility: "auto", depth: "topNodes" } },
-          { when: (a: any, s: any) => s.isActive && a.kind === "Theme", then: { labelVisibility: "visible" } },
-          { whenState: "isHovered", then: { backdropVisibility: "visible", labelVisibility: "visible" } },
+          // In focus, every neighbour is named, on a soft pill so overlapping names stay legible (Kumu/Obsidian focus).
+          {
+            whenState: "isActive",
+            then: {
+              labelVisibility: "visible", depth: "topNodes", backdropVisibility: "visible", backdropArea: "label", backdropLabelPadding: 3,
+              backdropColor: { attribute: "pill" }, backdropShadowBlur: 0,
+            },
+          },
+          { whenState: "isHovered", then: { backdropVisibility: "visible", backdropArea: "both", labelVisibility: "visible", backdropShadowBlur: 10, size: (a: any) => (a.size || 6) * 1.18 } },
           {
             whenState: "isHighlighted",
             then: {
               backdropVisibility: "visible", backdropArea: "node", backdropPadding: 3, labelVisibility: "visible", depth: "topNodes",
-              backdropShadowColor: { attribute: "halo" },
+              backdropColor: { attribute: "ring" }, backdropShadowColor: { attribute: "halo" },
               backdropShadowBlur: (_a: any, _s: any, gs: any) => 14 + 16 * (gs.pulse ?? 0.5),
             },
           },
@@ -559,7 +648,7 @@ fetch("/graph.json")
           DEFAULT_STYLES.edges,
           { path: { when: (a: any) => a.origin === "folder", then: "line", else: "curved" } },
           { opacity: (_a: any, s: any, gs: any) => (gs.reveal ?? 1) * (gs.hasActive && !s.isActive ? 1 - 0.9 * (gs.fade ?? 0) : 1) },
-          { whenState: "isActive", then: { color: { attribute: "activeColor" }, size: 2, depth: "topEdges" } },
+          { whenState: "isActive", then: { color: { attribute: "activeColor" }, size: 2.4, depth: "topEdges" } },
           { when: (a: any, s: any) => s.isActive && a.origin !== "folder", then: { head: "arrow" } },
           { when: (a: any, s: any) => s.isActive && a.origin === "folder", then: { size: 1, opacity: 0.55 } },
           { when: (a: any) => a.origin === "frontmatter", then: { head: "arrow" } },
@@ -571,10 +660,10 @@ fetch("/graph.json")
     renderer.on("leaveNode", () => { hovered = null; applyFocus(); });
     renderer.on("clickNode", ({ node }: { node: string }) => {
       if (byId[node].type === "Theme" && !selected) { legend.querySelector<HTMLButtonElement>(`[data-theme="${CSS.escape(node)}"]`)?.click(); return; }
-      openPanel(node);
+      focusNode(node);
     });
     renderer.on("doubleClickNode", (e: any) => { e.preventSigmaDefault?.(); location.href = primaryUrl(byId[e.node]); });
-    renderer.on("clickStage", () => { if (selected) closePanel(); else if (focusTheme) { focusTheme = null; applyFocus(); } });
+    renderer.on("clickStage", () => { if (selected) closePanel(); else clearThemeFocus(); });
 
     buildFilters(g.nodes, edges);
     applyFilters();
@@ -586,9 +675,15 @@ fetch("/graph.json")
     });
     const want = new URL(location.href).searchParams.get("node");
     const deepLink = !!(want && byId[want]);
+    if (want && !deepLink) {
+      const url = new URL(location.href);
+      url.searchParams.delete("node");
+      history.replaceState(null, "", url);
+    }
     // A deep link (from a note's "Show in graph") skips the entrance: the reader came for that note, now.
     (deepLink ? (cb: () => void) => { renderer.setGraphState({ reveal: 1 }); cb(); } : entrance)(() => {
       if (deepLink) focusNode(want!);
+      else if (want) updateStatus("That note is not in the graph. Showing the whole map.");
       // A small read-only handle for the end-to-end tests (and anyone curious in the console).
       (window as any).kfExplorer = {
         screenPos: (id: string) => {

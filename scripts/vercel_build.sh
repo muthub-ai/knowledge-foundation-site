@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Vercel's install + build in one step, so a failure is visible: Vercel's build logs are not always at hand, so on a
 # failed PREVIEW build the log tail becomes the preview page (behind Vercel Authentication) and the step succeeds.
-# Production fails normally and keeps the last good deployment.
+# Production, and any run outside Vercel, fails normally (production keeps the last good deployment). Never promote a
+# failed preview to production: its page is the log.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LOG="$ROOT/.build/vercel.log"
@@ -13,7 +14,7 @@ mkdir -p "$ROOT/.build"
   echo "== build" && bash "$ROOT/scripts/build.sh"
 } 2>&1 | tee "$LOG"
 rc=${PIPESTATUS[0]}
-if [ "$rc" -ne 0 ] && [ "${VERCEL_ENV:-}" != production ]; then
+if [ "$rc" -ne 0 ] && [ "${VERCEL_ENV:-}" = preview ]; then
   rm -rf "$ROOT/public" && mkdir -p "$ROOT/public"
   { echo '<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>Preview build failed</title>'
     echo "<h1>Preview build failed (exit $rc)</h1><pre>"

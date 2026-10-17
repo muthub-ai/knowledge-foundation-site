@@ -26,6 +26,9 @@ from .bundle import MD_LINK, Bundle, Doc, html_url, human_day, last_verified, re
 SEE_ALSO = re.compile(r"(?:^|\n)# See also\n(?P<list>[\s\S]*)$")
 CALLOUT = {"human-reviewed": ("success", "Reviewed by Muthu"), "machine-confirmed": ("info", "Machine-confirmed, not yet reviewed"),
            "unverified": ("info", "Not yet reviewed")}
+# What a note with canonical_essay summarises, by kind (the page on muthub.org is the real thing).
+CANONICAL_THING = {"Initiative": "case study", "Playbook": "playbook"}
+READ_ORIGINAL = re.compile(r"(?:^|\n)# Read the original\n[\s\S]*?(?=\n# |\Z)")
 
 
 def _dump(fm: dict[str, Any]) -> str:
@@ -58,6 +61,8 @@ class Stager:
         m = SEE_ALSO.search(body)
         if m:
             see_also, body = m.group("list").strip(), body[: m.start()].rstrip() + "\n"
+        if fm.get("canonical_essay"):
+            body = READ_ORIGINAL.sub("", body).rstrip() + "\n"  # the callout already leads with the link
         body = self.relink(d, body)
         body = re.sub(r"^(#{1,5}) ", lambda mm: "#" + mm.group(1) + " ", body, flags=re.M)  # the title is the page's h1
 
@@ -74,11 +79,14 @@ class Stager:
             facts.append(f"Re-check by {human_day(fm['stale_after'])}")
         sources = self.b.sources_of(d)
         facts.append(f"{len(sources)} source" + ("" if len(sources) == 1 else "s"))
-        callout = [f"> [!{kind}] {title}"]
         if fm.get("canonical_essay"):
-            # Readers came for the essay: say what this page is and send them there first, then the provenance.
-            callout += [f"> **This page summarises an essay. [Read the full essay on muthub.org →]({fm['canonical_essay']})**", ">"]
-        callout += ["> " + " · ".join(facts)]
+            # Readers came for the essay: the title says what this page is, the first line sends them there, and the
+            # review state leads the provenance line.
+            thing = CANONICAL_THING.get(str(fm.get("kind")), "essay")
+            callout = [f"> [!{kind}] Summary of {'an' if thing[0] in 'aeiou' else 'a'} {thing} on muthub.org",
+                       f"> **[Read the full {thing} on muthub.org →]({fm['canonical_essay']})**", ">", "> " + " · ".join([title, *facts])]
+        else:
+            callout = [f"> [!{kind}] {title}", "> " + " · ".join(facts)]
         callout += [">", f"> [Show in graph]({self.site}/graph/?node={quote(d.rel, safe='')}) · [Markdown]({self.site}{d.url}.md)"]
 
         parts = ["\n".join(callout), body.strip()]
@@ -103,12 +111,13 @@ class Stager:
 
     def home(self) -> str:
         cfg, notes = self.b.cfg, self.b.notes()
+        reviewed = sum(1 for n in notes if trust_tier(n.fm) == "human-reviewed")
         lines = [cfg["description"], "",
-                 f"{len(notes)} notes. Each one shows whether Muthu has reviewed it, when it was last verified and the sources it draws on. "
+                 f"{len(notes)} notes, {reviewed} reviewed by Muthu so far. Each one shows its review state, when it was last verified and the sources it draws on. "
                  f"The essays themselves live on [muthub.org]({cfg['canonical_site']}).", "",
                  f"[Explore the graph]({self.site}/graph/) · [llms.txt]({self.site}/llms.txt)", "", "## Themes", ""]
         for t in self.b.themes():
-            lines.append(f"- [{t['name']}](/{t['slug']}/): {t['description']} ({len(t['notes'])} notes)")
+            lines.append(f"- [{t['name']}](/{t['slug']}/): {t['description']} ({len(t['notes'])} note{'' if len(t['notes']) == 1 else 's'})")
         recent = sorted(notes, key=lambda n: last_verified(n.fm) or str((n.fm.get("generated") or {}).get("at", "")), reverse=True)[:8]
         lines += ["", "## Recently updated", ""] + [f"- [{n.title}]({n.url})" for n in recent]
         return _dump({"title": cfg["name"], "description": cfg["description"]}) + "\n" + "\n".join(lines) + "\n"

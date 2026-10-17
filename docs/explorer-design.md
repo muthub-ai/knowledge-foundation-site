@@ -22,25 +22,35 @@ behind them (October 2026), so later changes keep the same intent.
 
 ## What we do
 
-- **Color means theme.** Each note takes the color of the theme it belongs to (five hues, one set for light and one for
-  dark backgrounds). Themes are larger hubs with a serif label that is always shown. Sources are grey.
+- **Layout is designed, not simulated.** Themes sit on a ring, ordered so strongly linked themes are neighbours; each
+  theme's notes orbit their hub, turned toward the themes they link to, with a gap below the hub for its name (Vertex's
+  "cluster" layout, made deterministic). The force layout in `graph.json` piled the clusters on top of each other.
+- **Color means theme.** Each note takes the color of the theme it belongs to (a palette of seven hues, one set for
+  light and one for dark backgrounds). Themes are larger hubs with a serif name on a pill. Sources are grey.
 - **Shape means kind.** Essay = circle, Initiative = diamond, Playbook = rounded square, Source = triangle.
 - **Edges are quiet until they matter.** Curved, tinted by the source's theme, mostly transparent. Theme membership is
   the faintest; declared relations the strongest and carry arrows. When a node is in focus, its edges light up in its
   color and show direction.
 - **Focus, like Kumu and Obsidian.** Hover (or select) a node: the rest of the map fades to 14% over 180 ms; the
-  neighbourhood stays and shows its labels. Click a theme (in the legend or on the map) to focus its cluster and fit the
+  neighbourhood stays and every neighbour is named on a soft pill; the hovered node grows slightly. Click a theme (in the legend or on the map) to focus its cluster and fit the
   camera to it.
 - **Entrance, like Obsidian's startup.** Theme hubs pop in first (ease-out-back), then each theme's notes fly out from
   their hub, staggered by theme; edges fade in after. About 1.6 s; nothing to wait for with reduced motion.
-- **Selection.** The camera glides to the note (650 ms, cubic in-out); the note gets a slow pulsing glow; the panel rises
-  in with the theme color as its edge, a review badge, and connections grouped by relation.
+- **Selection.** The camera glides to the note (700 ms, cubic in-out), centring it and zooming to show its neighbours
+  (a note with few neighbours also shows its theme), clear of the legend and panel; the note gets a slow pulsing glow;
+  the panel rises in with the theme color as its edge, a review badge, and its connections: linked notes once each
+  with a direction mark (→ ← ⇄), sources, or a theme's notes. On phones the panel is a bottom sheet and the camera
+  lifts the note above it.
 - **Real pages first.** A note that summarises one of Muthu's essays has `canonical` in `graph.json`; its main action is
   "Read on muthub.org", with the wiki summary as the second link (also for double-click and the list view).
 - **Chrome.** Glass toolbar and legend (backdrop blur), a soft center glow, a faint dot grid and a vignette behind the
   canvas. Search suggests as you type (arrow keys, Enter); "/" focuses it.
 - **Accessibility.** The list view is a table of everything shown; the legend and panel are keyboard reachable;
-  `prefers-reduced-motion` turns every animation off.
+  choosing a note from search moves focus to the panel; selections are announced in one short line; touch targets are
+  44 px on touch screens; `prefers-reduced-motion` turns every animation off and the pulse stops in a background tab.
+- **Independent review (October 17, 2026).** A separate design review drove: the bottom sheet, list view on phones,
+  the label gap below hubs, named neighbours in focus, clicking a node framing it, Sources and their edges toggling
+  together, merged relation lists, the empty state, the loading message, and zoom limits.
 
 ## Sources
 

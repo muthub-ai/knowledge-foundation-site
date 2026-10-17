@@ -68,14 +68,20 @@ class StageFixture(unittest.TestCase):
 
     def test_provenance_callout(self):
         body = self.note.split("---\n", 2)[2]
-        self.assertTrue(body.lstrip().startswith("> [!success] Reviewed by Muthu"))
-        self.assertIn("**Concept** · Last verified Oct 12, 2026 · Drafted Oct 10, 2026 by llmwiki2/0.5.0 · Re-check by Apr 12, 2027 · 2 sources", self.note)
-        self.assertIn("> **This page summarises an essay. [Read the full essay on muthub.org →](https://muthub.org/writing/my-essay)**", self.note)
+        # A summary of an essay: the title says so, the first line links to it, the review state leads the provenance.
+        self.assertTrue(body.lstrip().startswith("> [!success] Summary of an essay on muthub.org\n> **[Read the full essay on muthub.org →](https://muthub.org/writing/my-essay)**"))
+        self.assertIn("> Reviewed by Muthu · **Concept** · Last verified Oct 12, 2026 · Drafted Oct 10, 2026 by llmwiki2/0.5.0 · Re-check by Apr 12, 2027 · 2 sources", self.note)
         self.assertIn("[Show in graph](https://wiki.muthub.org/graph/?node=governed-ai%2Fguardrails.md)", self.note)
         self.assertIn("[Markdown](https://wiki.muthub.org/governed-ai/guardrails.md)", self.note)
         self.assertIn("> [!info] Not yet reviewed", self.draft)
         self.assertIn("**Pattern** · Draft · Drafted", self.draft)
         self.assertIn("· 1 source\n", self.draft)
+
+    def test_read_the_original_section_is_dropped_when_the_callout_links_the_essay(self):
+        from kfsite.stage import READ_ORIGINAL
+        body = "# Overview\n\nSummary.\n\n# Read the original\n\nThe full note is on muthub.org: [x](https://muthub.org/x).\n\n# See also\n\n- y\n"
+        self.assertEqual(READ_ORIGINAL.sub("", body), "# Overview\n\nSummary.\n\n# See also\n\n- y\n")
+        self.assertEqual(READ_ORIGINAL.sub("", "# Overview\n\nA.\n\n# Read the original\n\nLink.\n"), "# Overview\n\nA.\n")
 
     def test_links(self):
         self.assertIn("[the context layer](/context-engineering/context-layer#why)", self.note)
@@ -98,7 +104,8 @@ class StageFixture(unittest.TestCase):
         home = (self.out / "index.md").read_text()
         self.assertEqual(front(home)["title"], "Knowledge Foundation")
         self.assertIn("- [Governed AI](/governed-ai/): ", home)
-        self.assertIn("(1 notes)", home)
+        self.assertIn("(1 note)", home)
+        self.assertIn("2 notes, 1 reviewed by Muthu so far.", home)
         self.assertIn("[Explore the graph](https://wiki.muthub.org/graph/)", home)
         self.assertIn("- [Guardrails by design](/governed-ai/guardrails)", home)  # recently updated
         theme = (self.out / "governed-ai" / "index.md").read_text()

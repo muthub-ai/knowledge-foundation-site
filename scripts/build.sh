@@ -13,9 +13,10 @@ REF="$(tr -d '[:space:]' < "$ROOT/quartz.ref")"
 mkdir -p "$WORK"
 cd "$ROOT"
 
-# The graph explorer, rebuilt from the npm packages pinned in package.json (explorer/dist/explorer.js is committed for
-# machines without npm; this keeps what ships identical to what CI tested).
-npm install --no-audit --no-fund --loglevel=error
+# The graph explorer, rebuilt from the npm packages locked in package-lock.json (explorer/dist/explorer.js is committed
+# for machines without npm; this keeps what ships identical to what CI tested). Without a lockfile yet, npm install
+# writes one, and CI hands it back to be committed.
+if [ -f package-lock.json ]; then npm ci --no-audit --no-fund --loglevel=error; else npm install --no-audit --no-fund --loglevel=error; fi
 npm run --silent build:explorer
 
 if [ -z "${KF_BUNDLE:-}" ] && [ -n "${KF_BRANCH:-}" ]; then

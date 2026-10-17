@@ -24,8 +24,8 @@ What a reader gets:
   hovering fades the rest of the map and lights a note's neighbourhood; a theme in the legend focuses its cluster; the
   selected note glows and its panel opens with "Read on muthub.org" first for essays. Search suggests as you type ("/"),
   filters by node type and connection origin, a list view, zoom controls, and `?node=<id>` links from every note (those
-  open at once, without the entrance). It shares the dark-mode choice with the Quartz pages, and
-  `prefers-reduced-motion` turns the animation off.
+  open at once, without the entrance). On phones the panel is a bottom sheet. It shares the dark-mode choice with the
+  Quartz pages, and `prefers-reduced-motion` turns the animation off. Its CSP allows no inline scripts or styles.
 - **For machines**: a Markdown twin of every note (`/<theme>/<note>.md`, the OKF file itself), `llms.txt`, the sitemap,
   and JSON-LD on every note.
 
@@ -53,9 +53,11 @@ the latest release (or the tag in `KF_RELEASE`), which is what Vercel does. The 
 
 **The explorer:** `explorer/src/explorer.ts` is bundled with Sigma.js and graphology by `npm run build:explorer` into
 `explorer/dist/explorer.js`. The build script rebuilds it from npm every time. The committed copy is for machines
-without npm, and CI fails when it differs from the npm build. When that happens on a pull request, CI's
-`bundle-handback` job pushes the npm build to the scratch branch `ci/explorer-bundle`; take it with
-`git fetch origin ci/explorer-bundle && git checkout FETCH_HEAD -- explorer/dist/explorer.js` and commit it.
+without npm. The npm packages are locked in `package-lock.json` (`build.sh` runs `npm ci`). CI fails when the committed
+bundle or lockfile differs from what it built; on a pull request its `bundle-handback` job then pushes both to the
+scratch branch `ci/explorer-bundle/<pull request number>`. Take them with
+`git fetch origin ci/explorer-bundle/<n> && git checkout FETCH_HEAD -- explorer/dist/explorer.js package-lock.json` and
+commit. Vercel ignores `ci/*` branches.
 
 ## Test
 
@@ -65,6 +67,9 @@ python -m unittest discover -s tests -v     # stage, post, release download (fix
 npm install && npx playwright install chromium
 KF_QUARTZ=1 npx playwright test             # Quartz pages and the graph explorer, desktop and mobile
 ```
+
+`tests/serve.py` serves `public/` the way Vercel does (clean URLs, and the response headers from `vercel.json`, so a
+Content-Security-Policy violation on `/graph/` fails the browser tests as a console error).
 
 Without npm, `python tests/build_preview.py --bundle … --graph …` builds `public/` with a stand-in for Quartz
 (`tests/fake_quartz.py`). In that case, run `npx playwright test` without `KF_QUARTZ`: the explorer tests run and the

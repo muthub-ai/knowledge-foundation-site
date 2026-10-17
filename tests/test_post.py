@@ -133,8 +133,9 @@ class PostRealBundle(unittest.TestCase):
         if not terms:
             self.skipTest("blocklist is empty")
         hits = 0
-        for f in self.public.rglob("*"):
-            if f.suffix not in (".html", ".md", ".json", ".txt", ".xml"):
+        # The built site, and this repository's own public prose (README, design notes).
+        for f in [*self.public.rglob("*"), ROOT / "README.md", *(ROOT / "docs").rglob("*.md")]:
+            if f.suffix not in (".html", ".md", ".json", ".txt", ".xml") or not f.is_file():
                 continue
             text = f.read_text(encoding="utf-8")
             for t in terms:

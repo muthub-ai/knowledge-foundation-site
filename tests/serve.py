@@ -1,9 +1,18 @@
-"""Static server with Vercel's cleanUrls behaviour (/a/b -> a/b.html, /a/ -> a/index.html), for the browser tests."""
+"""Static server with Vercel's cleanUrls behaviour (/a/b -> a/b.html, /a/ -> a/index.html), for the browser tests.
+
+It also sends the response headers from vercel.json (the Content-Security-Policy on /graph/ above all), so a CSP
+violation shows up in the browser tests as a console error, as it would on Vercel."""
 
 import http.server
+import json
 import os
+import re
 import sys
 from functools import partial
+from pathlib import Path
+from urllib.parse import urlsplit
+
+_RULES = [(re.compile(r["source"]), r["headers"]) for r in json.loads((Path(__file__).resolve().parents[1] / "vercel.json").read_text())["headers"]]
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -14,6 +23,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if not os.path.exists(local) and os.path.exists(local + ".html"):
             return local + ".html"
         return local
+
+    def end_headers(self):
+        path = urlsplit(self.path).path
+        for pattern, headers in _RULES:
+            if pattern.fullmatch(path):
+                for h in headers:
+                    if h["key"].lower() != "content-type":  # the server already sends the right type
+                        self.send_header(h["key"], h["value"])
+        super().end_headers()
 
     def send_error(self, code, message=None, explain=None):
         page = os.path.join(self.directory, "404.html")

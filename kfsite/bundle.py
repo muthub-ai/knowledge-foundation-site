@@ -213,5 +213,5 @@ def load_config(bundle_root: Path) -> dict[str, Any]:
     cfg.setdefault("author", {"name": "Muthukrishnan Bommiah", "url": "https://muthub.org/about", "same_as": []})
     cfg["description"] = cfg.get("description") or (
         "Muthu Bommiah's working knowledge on governed AI, context engineering and AI-native software delivery, "
-        "kept current by an LLM librarian and reviewed by him. Every note carries its sources and when it was last verified.")
+        "kept current by an LLM librarian; each note says whether he has reviewed it. Every note carries its sources and when it was last verified.")
     return cfg

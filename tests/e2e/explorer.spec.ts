@@ -70,7 +70,7 @@ test("?node= opens on that note, and panel neighbours navigate", async ({ page }
   await expect(page.locator("#g-panel h2")).toHaveText(target.label);
   await expect.poll(() => page.evaluate(() => (window as any).kfExplorer.selected())).toBe(target.id);
   const nb = page.locator("#g-panel li a").first();
-  const name = await nb.textContent();
+  const name = await nb.locator(".t").textContent();
   await nb.click();
   await expect(page.locator("#g-panel h2")).toHaveText(name!);
 });
