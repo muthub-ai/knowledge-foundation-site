@@ -29,7 +29,8 @@ jobs:
         with: { node-version: 22 }
       - run: pip install -r requirements.txt -r requirements-dev.txt -r .kf/requirements.txt
       - name: Graph from the knowledge repository
-        run: PYTHONPATH=tools python -m kb graph --out dist
+        run: bash ../.github/ci-run.sh "graph" python -m kb graph --out dist
+        env: { PYTHONPATH: tools }
         working-directory: .kf
       - name: Confidential terms from the secret (written to a temp file, never printed)
         run: printf '%s\n' "$TERMS" | tr '|' '\n' > "$RUNNER_TEMP/terms.txt"
