@@ -106,8 +106,94 @@ function paint() {
   renderer?.refresh();
 }
 
+// Node sizes are in screen pixels; small screens get smaller nodes so clusters stay readable.
+const SIZE_SCALE = Math.min(1, Math.max(0.6, Math.min(innerWidth, innerHeight) / 850));
 function nodeSize(n: GNode) {
-  return n.type === "Theme" ? 16 + Math.sqrt(n.degree || 0) * 2 : (n.type === "Source" ? 4 : 6) + Math.sqrt(n.degree || 0) * 2.1;
+  return SIZE_SCALE * (n.type === "Theme" ? 16 + Math.sqrt(n.degree || 0) * 2 : (n.type === "Source" ? 4 : 6) + Math.sqrt(n.degree || 0) * 2.1);
+}
+
+/**
+ * The constellation layout (deterministic, computed here rather than taken from graph.json's force layout, which piles
+ * the clusters on top of each other): theme hubs sit on a ring, ordered so strongly linked themes are neighbours; each
+ * theme's notes orbit their hub, and each note is turned toward the themes it links to, so cross-theme links are
+ * short and the picture reads like a designed map. Sources sit just outside their note.
+ */
+function layout(nodes: GNode[], edges: GEdge[]) {
+  const pos: Record<string, { x: number; y: number; side: "left" | "right" }> = {};
+  const R = 100;
+  const members: Record<string, string[]> = {};
+  themes.forEach((t) => (members[t] = []));
+  nodes.forEach((n) => { if (n.type !== "Theme" && n.type !== "Source" && themeOf[n.id]) members[themeOf[n.id]].push(n.id); });
+  // Theme ring order: greedy walk from the largest theme to its most linked unplaced neighbour.
+  const w: Record<string, number> = {};
+  const key = (a: string, b: string) => (a < b ? a + "|" + b : b + "|" + a);
+  edges.forEach((e) => {
+    const a = themeOf[e.source], b = themeOf[e.target];
+    if (a && b && a !== b && e.origin !== "source" && e.origin !== "folder") w[key(a, b)] = (w[key(a, b)] || 0) + 1;
+  });
+  const ring = themes.length ? [themes[0]] : [];
+  while (ring.length < themes.length) {
+    const last = ring[ring.length - 1];
+    const next = themes.filter((t) => !ring.includes(t)).sort((a, b) => (w[key(last, b)] || 0) - (w[key(last, a)] || 0))[0];
+    ring.push(next);
+  }
+  const hub: Record<string, { x: number; y: number }> = {};
+  ring.forEach((t, i) => {
+    const a = -Math.PI / 2 + (i / Math.max(1, ring.length)) * Math.PI * 2;
+    hub[t] = { x: Math.cos(a) * R, y: Math.sin(a) * R };
+    pos[t] = { ...hub[t], side: Math.cos(a) < 0 ? "left" : "right" };
+  });
+  const neighbours: Record<string, string[]> = {};
+  edges.forEach((e) => {
+    if (e.origin === "folder" || e.origin === "source") return;
+    (neighbours[e.source] ||= []).push(e.target);
+    (neighbours[e.target] ||= []).push(e.source);
+  });
+  const TAU = Math.PI * 2;
+  for (const t of ring) {
+    const h = hub[t];
+    const ids = members[t].sort((a, b) => (byId[b].degree || 0) - (byId[a].degree || 0) || a.localeCompare(b));
+    // Preferred direction: toward the hubs of linked notes in other themes, else away from the centre.
+    const pref = (id: string) => {
+      let vx = 0, vy = 0;
+      for (const nb of neighbours[id] || []) {
+        const ot = themeOf[nb];
+        if (ot && ot !== t && hub[ot]) { vx += hub[ot].x - h.x; vy += hub[ot].y - h.y; }
+      }
+      if (!vx && !vy) { vx = h.x; vy = h.y; }
+      return Math.atan2(vy, vx);
+    };
+    const r1 = 15 + 1.05 * ids.length, cap = Math.max(6, Math.floor((TAU * r1) / 7.5));
+    for (let ringNo = 0, start = 0; start < ids.length; ringNo++, start += cap) {
+      const chunk = ids.slice(start, start + cap).map((id) => ({ id, p: pref(id) })).sort((a, b) => a.p - b.p);
+      const r = r1 + ringNo * 9, step = TAU / chunk.length;
+      // Rotate the evenly spaced slots so they line up, on average, with each note's preferred direction.
+      let sx = 0, sy = 0;
+      chunk.forEach((c, i) => { sx += Math.cos(c.p - i * step); sy += Math.sin(c.p - i * step); });
+      const off = Math.atan2(sy, sx) + (ringNo % 2 ? step / 2 : 0);
+      chunk.forEach((c, i) => {
+        const a = off + i * step;
+        pos[c.id] = { x: h.x + Math.cos(a) * r, y: h.y + Math.sin(a) * r, side: Math.cos(a) < 0 ? "left" : "right" };
+      });
+    }
+  }
+  // Notes without a theme: a small ring at the centre.
+  const loose = nodes.filter((n) => n.type !== "Theme" && n.type !== "Source" && !pos[n.id]);
+  loose.forEach((n, i) => {
+    const a = (i / Math.max(1, loose.length)) * TAU;
+    pos[n.id] = { x: Math.cos(a) * 18, y: Math.sin(a) * 18, side: Math.cos(a) < 0 ? "left" : "right" };
+  });
+  // Sources: just outside the first note that draws on them, fanned a little.
+  const fan: Record<string, number> = {};
+  edges.filter((e) => e.origin === "source").forEach((e) => {
+    const [note, src] = byId[e.target].type === "Source" ? [e.source, e.target] : [e.target, e.source];
+    if (pos[src] || !pos[note]) return;
+    const t = themeOf[note], c = t ? hub[t] : { x: 0, y: 0 };
+    const a = Math.atan2(pos[note].y - c.y, pos[note].x - c.x) + ((fan[note] = (fan[note] || 0) + 1) - 1) * 0.35;
+    pos[src] = { x: pos[note].x + Math.cos(a) * 9, y: pos[note].y + Math.sin(a) * 9, side: Math.cos(a) < 0 ? "left" : "right" };
+  });
+  nodes.forEach((n, i) => { if (!pos[n.id]) pos[n.id] = { x: Math.cos(i) * 140, y: Math.sin(i) * 140, side: "right" }; });
+  return pos;
 }
 
 // -- focus: hovered or selected node and its neighbours, or a whole theme -------------------------------------------
@@ -411,9 +497,14 @@ fetch("/graph.json")
       const [note, src] = byId[e.target].type === "Source" ? [e.source, e.target] : [e.target, e.source];
       if (!themeOf[src] && themeOf[note]) themeOf[src] = themeOf[note];
     });
+    const pos = layout(g.nodes, edges);
     g.nodes.forEach((n) => {
       // Stored as "kind" (and an edge's relation as "rel") so no attribute name collides with a sigma style input.
-      graph.addNode(n.id, { x: n.x, y: -n.y, size: nodeSize(n), label: n.label, kind: n.type, community: n.community, shape: SHAPE[n.type] || "circle" });
+      const p = pos[n.id];
+      graph.addNode(n.id, {
+        x: p.x, y: -p.y, size: nodeSize(n), label: n.label, kind: n.type, community: n.community, shape: SHAPE[n.type] || "circle",
+        labelSide: n.type === "Theme" ? "below" : p.side,
+      });
     });
     edges.forEach((e) => graph.addEdge(e.source, e.target, { rel: e.type, origin: e.origin, size: e.origin === "folder" ? 0.7 : e.origin === "frontmatter" ? 1.6 : 1.1 }));
     buildLegend();
@@ -440,6 +531,7 @@ fetch("/graph.json")
             backdropColor: { attribute: "page" }, backdropPadding: 5, backdropShadowColor: "rgba(0,0,0,0.18)", backdropShadowBlur: 10,
             opacity: (_a: any, s: any, gs: any) => (dimmed(s, gs) ? 1 - 0.86 * (gs.fade ?? 0) : 1),
           },
+          { labelPosition: { attribute: "labelSide" } },
           { when: (a: any) => a.kind === "Theme", then: { labelVisibility: "visible", labelSize: 15, labelFont: "Newsreader, Georgia, serif" } },
           { when: (_a: any, s: any, gs: any) => dimmed(s, gs) && (gs.fade ?? 0) > 0.5, then: { labelVisibility: "hidden" } },
           { whenState: "isActive", then: { labelVisibility: "visible", depth: "topNodes" } },
@@ -447,7 +539,7 @@ fetch("/graph.json")
           {
             whenState: "isHighlighted",
             then: {
-              backdropVisibility: "visible", labelVisibility: "visible", depth: "topNodes",
+              backdropVisibility: "visible", backdropArea: "node", backdropPadding: 3, labelVisibility: "visible", depth: "topNodes",
               backdropShadowColor: { attribute: "halo" },
               backdropShadowBlur: (_a: any, _s: any, gs: any) => 14 + 16 * (gs.pulse ?? 0.5),
             },
@@ -457,7 +549,9 @@ fetch("/graph.json")
           DEFAULT_STYLES.edges,
           { path: { when: (a: any) => a.origin === "folder", then: "line", else: "curved" } },
           { opacity: (_a: any, s: any, gs: any) => (gs.reveal ?? 1) * (gs.hasActive && !s.isActive ? 1 - 0.9 * (gs.fade ?? 0) : 1) },
-          { whenState: "isActive", then: { color: { attribute: "activeColor" }, size: 2.2, depth: "topEdges", head: "arrow" } },
+          { whenState: "isActive", then: { color: { attribute: "activeColor" }, size: 2, depth: "topEdges" } },
+          { when: (a: any, s: any) => s.isActive && a.origin !== "folder", then: { head: "arrow" } },
+          { when: (a: any, s: any) => s.isActive && a.origin === "folder", then: { size: 1, opacity: 0.55 } },
           { when: (a: any) => a.origin === "frontmatter", then: { head: "arrow" } },
         ],
       } as any,
@@ -474,9 +568,17 @@ fetch("/graph.json")
 
     buildFilters(g.nodes, edges);
     applyFilters();
-    entrance(() => {
-      const want = new URL(location.href).searchParams.get("node");
-      if (want && byId[want]) focusNode(want);
+    // Fix the camera's frame to the shown nodes' final extent, so the entrance (and toggling sources) never rescales it.
+    const shownPos = g.nodes.filter((n) => !DEFAULT_OFF_TYPES.has(n.type)).map((n) => pos[n.id]);
+    renderer.setCustomBBox({
+      x: [Math.min(...shownPos.map((p) => p.x)), Math.max(...shownPos.map((p) => p.x))],
+      y: [Math.min(...shownPos.map((p) => -p.y)), Math.max(...shownPos.map((p) => -p.y))],
+    });
+    const want = new URL(location.href).searchParams.get("node");
+    const deepLink = !!(want && byId[want]);
+    // A deep link (from a note's "Show in graph") skips the entrance: the reader came for that note, now.
+    (deepLink ? (cb: () => void) => { renderer.setGraphState({ reveal: 1 }); cb(); } : entrance)(() => {
+      if (deepLink) focusNode(want!);
       // A small read-only handle for the end-to-end tests (and anyone curious in the console).
       (window as any).kfExplorer = {
         screenPos: (id: string) => {
