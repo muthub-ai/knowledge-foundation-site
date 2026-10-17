@@ -81,15 +81,16 @@ CI (`.github/workflows/ci.yml`) runs everything on every pull request with the r
 ## Deploy
 
 The Vercel project `knowledge-foundation-site` exists (created October 17, 2026) and is linked to this repository.
-`vercel.json` runs everything through `scripts/vercel_build.sh`, which installs the Python packages
-(`scripts/pip_install.sh` copes with Vercel's "externally managed" Python) and runs `scripts/build.sh`.
+`vercel.json` runs everything through `scripts/vercel_build.sh`, which sets up Python 3.11.4 or newer in a virtual
+environment, installs the Python packages and runs `scripts/build.sh`.
 
-- **Production** is `main` only. A merge to `main` deploys wiki.muthub.org. The project's "ignored build step" skips
-  any production build from another branch, as a guard. Production builds read the latest knowledge release.
+- **Production** is `main` only. A merge to `main` deploys wiki.muthub.org. The ignored build step
+  (`ignoreCommand` in `vercel.json`) skips any production build from another branch, as a guard, and `ci/*` branches. Production builds read the latest knowledge release.
 - **Domain:** `wiki.muthub.org`, verified. muthub.org's DNS is hosted by Vercel, so no record is needed.
 - **Previews:** every push to a branch gets a private preview (Vercel Authentication). A preview reads the knowledge
   repository's branch named in the Vercel preview variable `KF_BRANCH` (set for this repository's `claude/initial-build`
   branch while the two first pull requests are open; remove it after they merge) and otherwise the latest release.
-  When a preview build fails, its page shows the build log instead.
+  When a preview build fails, its page shows the build log instead, so Vercel's own check stays green: the **build
+  and test** check in GitHub is the one that gates merging.
 - **Still to do once:** create a deploy hook for `main` (Project → Settings → Git → Deploy Hooks) and save its URL as
   the `VERCEL_DEPLOY_HOOK` secret in the knowledge repository, so every knowledge release rebuilds the site.

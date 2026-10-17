@@ -94,6 +94,13 @@ class PostFixture(unittest.TestCase):
         f.write_text(f.read_text().replace("Overview<", "Overview \u2014<"))
         self.assertTrue(any("em dash" in p for p in check_output(self.public, self.bundle)))
 
+    def test_any_email_address_is_reported_but_not_asset_names(self):
+        f = self.public / "governed-ai" / "guardrails.html"
+        f.write_text(f.read_text().replace("Overview<", 'Overview <img src="icon@2x.png"><'))
+        self.assertEqual(check_output(self.public, self.bundle), [])
+        f.write_text(f.read_text().replace("Overview ", "Overview someone@example.org "))
+        self.assertTrue(any("email" in p for p in check_output(self.public, self.bundle)))
+
     def test_missing_quartz_page_fails_the_build(self):
         (self.public / "context-engineering" / "context-layer.html").unlink()
         with self.assertRaises(BuildError) as e:
@@ -127,11 +134,12 @@ class PostRealBundle(unittest.TestCase):
 
     def test_confidential_terms_absent(self):
         path = os.environ.get("CONFIDENTIAL_TERMS_FILE", str(ROOT.parent / "knowledge-foundation" / ".confidential-terms.txt"))
-        if not Path(path).exists():
-            self.skipTest("no blocklist available")
-        terms = [t.strip() for t in Path(path).read_text().replace("|", "\n").splitlines() if t.strip() and not t.startswith("#")]
+        terms = [t.strip() for t in Path(path).read_text().replace("|", "\n").splitlines() if t.strip() and not t.startswith("#")] if Path(path).exists() else []
         if not terms:
-            self.skipTest("blocklist is empty")
+            # In CI the secret must be there: a missing or empty one would otherwise pass silently.
+            if os.environ.get("CI"):
+                self.fail("no confidential terms in CI (secret CONFIDENTIAL_TERMS missing or empty)")
+            self.skipTest("no blocklist available")
         hits = 0
         # The built site, and this repository's own public prose (README, design notes).
         for f in [*self.public.rglob("*"), ROOT / "README.md", *(ROOT / "docs").rglob("*.md")]:

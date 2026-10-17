@@ -9,11 +9,11 @@ LOG="$ROOT/.build/vercel.log"
 mkdir -p "$ROOT/.build"
 
 # Python: Vercel's build image (Amazon Linux 2023) has an old system python3, often without pip, next to newer
-# Pythons. Use the newest 3.11+ (install 3.12 with dnf if there is none) in a virtual environment, which brings its
+# Pythons. Use the newest 3.11.4+ (tarfile's extraction filters) (install 3.12 with dnf if there is none) in a virtual environment, which brings its
 # own pip and sidesteps the "externally managed" system install; put it first on PATH for build.sh.
 PY=""
 for c in python3.14 python3.13 python3.12 python3.11 python3; do
-  if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+  if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11, 4) else 1)' 2>/dev/null; then
     PY="$(command -v "$c")"; break
   fi
 done

@@ -455,6 +455,11 @@ function renderSuggest() {
   suggest.hidden = false;
   search.setAttribute("aria-expanded", "true");
 }
+function hideSuggest() {
+  suggest.hidden = true;
+  search.setAttribute("aria-expanded", "false");
+  search.removeAttribute("aria-activedescendant");
+}
 function movePick(d: number) {
   const items = [...suggest.querySelectorAll("li")];
   if (!items.length) return;
@@ -464,21 +469,21 @@ function movePick(d: number) {
 }
 function runSearch() {
   const chosen = pick >= 0 ? suggest.querySelectorAll("li")[pick]?.getAttribute("data-id") : findByLabel(search.value);
-  suggest.hidden = true;
+  hideSuggest();
   if (chosen) { updateStatus(); focusNode(chosen, { moveFocus: true }); } else updateStatus(`No note matches “${search.value}”.`);
 }
 search.addEventListener("input", renderSuggest);
 search.addEventListener("focus", renderSuggest);
-search.addEventListener("blur", () => setTimeout(() => (suggest.hidden = true), 120));
+search.addEventListener("blur", () => setTimeout(hideSuggest, 120));
 search.addEventListener("keydown", (ev) => {
   if (ev.key === "Enter") { ev.preventDefault(); runSearch(); }
   else if (ev.key === "ArrowDown") { ev.preventDefault(); movePick(1); }
   else if (ev.key === "ArrowUp") { ev.preventDefault(); movePick(-1); }
-  else if (ev.key === "Escape" && !suggest.hidden) { suggest.hidden = true; ev.stopPropagation(); }
+  else if (ev.key === "Escape" && !suggest.hidden) { hideSuggest(); ev.stopPropagation(); }
 });
 suggest.addEventListener("mousedown", (ev) => {
   const li = (ev.target as HTMLElement).closest("li");
-  if (li) { ev.preventDefault(); suggest.hidden = true; search.value = byId[li.dataset.id!].label; focusNode(li.dataset.id!); }
+  if (li) { ev.preventDefault(); hideSuggest(); search.value = byId[li.dataset.id!].label; focusNode(li.dataset.id!); }
 });
 
 // -- list view -------------------------------------------------------------------------------------------------------
@@ -572,7 +577,9 @@ $("g-empty-reset").addEventListener("click", () => $("g-reset").click());
 fetch("/graph.json")
   .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
   .then((g: { nodes: GNode[]; edges: GEdge[] }) => {
-    g.nodes.forEach((n) => (byId[n.id] = n));
+    // Links come from graph.json: only same-site paths and https URLs become hrefs (no javascript: or data: links).
+    const safeUrl = (u?: string) => (u && /^(https:\/\/|\/(?!\/))/.test(u) ? u : undefined);
+    g.nodes.forEach((n) => { n.url = safeUrl(n.url) ?? "#"; n.canonical = safeUrl(n.canonical); byId[n.id] = n; });
     const edges = g.edges.filter((e) => e.source !== e.target && byId[e.source] && byId[e.target]);
     // A note's theme is the theme its folder edge points at (either direction, to be safe).
     edges.filter((e) => e.origin === "folder").forEach((e) => {

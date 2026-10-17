@@ -16,7 +16,7 @@ cd "$ROOT"
 # The graph explorer, rebuilt from the npm packages locked in package-lock.json (explorer/dist/explorer.js is committed
 # for machines without npm; this keeps what ships identical to what CI tested). Without a lockfile yet, npm install
 # writes one, and CI hands it back to be committed.
-if [ -f package-lock.json ]; then npm ci --no-audit --no-fund --loglevel=error; else npm install --no-audit --no-fund --loglevel=error; fi
+if [ -f package-lock.json ]; then npm ci --include=dev --no-audit --no-fund --loglevel=error; else npm install --include=dev --no-audit --no-fund --loglevel=error; fi
 npm run --silent build:explorer
 
 if [ -z "${KF_BUNDLE:-}" ] && [ -n "${KF_BRANCH:-}" ]; then
@@ -50,7 +50,7 @@ cp "$ROOT/quartz/custom.scss" "$WORK/quartz/quartz/styles/custom.scss"
 
 (
   cd "$WORK/quartz"
-  npm ci --no-audit --no-fund --loglevel=error
+  npm ci --include=dev --no-audit --no-fund --loglevel=error
   npx quartz plugin install            # the same steps as Quartz's own CI; the default plugins come with npm ci
   npx quartz build --output "$ROOT/public"
 )

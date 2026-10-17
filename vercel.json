@@ -3,6 +3,7 @@
   "framework": null,
   "installCommand": "echo \"install runs inside scripts/vercel_build.sh\"",
   "buildCommand": "bash scripts/vercel_build.sh",
+  "ignoreCommand": "case \"$VERCEL_GIT_COMMIT_REF\" in ci/*) echo \"CI scratch branch\"; exit 0;; esac; if [ \"$VERCEL_ENV\" = production ] && [ \"$VERCEL_GIT_COMMIT_REF\" != main ]; then exit 0; fi; exit 1",
   "outputDirectory": "public",
   "cleanUrls": true,
   "trailingSlash": false,

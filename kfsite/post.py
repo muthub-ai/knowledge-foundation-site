@@ -110,7 +110,9 @@ def check_output(public: Path, bundle: Bundle) -> list[str]:
         article = " ".join(re.findall(r"<article[\s\S]*?</article>", text))  # our content, not Quartz's own chrome
         if "\u2014" in article:
             problems.append(f"{f.relative_to(public)}: em dash")
-        if re.search(r"mailto:|[\w.+-]+@gmail\.com", text):
+        # Any address, not just one provider: "name@domain.tld" with a real-looking top-level domain, so asset names
+        # such as "icon@2x.png" do not count.
+        if re.search(r"mailto:|\b[\w.+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|org|net|io|ai|dev|app|co|me|edu|gov|us|uk|in|info)\b", text, re.I):
             problems.append(f"{f.relative_to(public)}: email address")
     return problems
 

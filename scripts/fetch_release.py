@@ -9,6 +9,8 @@ import json
 import os
 import shutil
 import tarfile
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -19,8 +21,16 @@ def _get(url: str) -> bytes:
     req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "knowledge-foundation-site"})
     if os.environ.get("GITHUB_TOKEN"):
         req.add_header("Authorization", f"Bearer {os.environ['GITHUB_TOKEN']}")
-    with urllib.request.urlopen(req, timeout=60) as r:  # noqa: S310 (fixed https host)
-        return r.read()
+    # Unauthenticated API calls share a small hourly limit across build machines: retry a few times before failing.
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:  # noqa: S310 (fixed https host)
+                return r.read()
+        except (urllib.error.URLError, TimeoutError) as e:
+            if attempt == 3 or (isinstance(e, urllib.error.HTTPError) and e.code == 404):
+                raise
+            time.sleep(5 * 2 ** attempt)
+    raise AssertionError("unreachable")
 
 
 def fetch(dest: Path) -> Path:

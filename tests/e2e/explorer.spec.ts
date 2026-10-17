@@ -83,8 +83,10 @@ test("search jumps to a note and zooms in; unknown text says so", async ({ page 
   const before = await page.evaluate(() => (window as any).kfExplorer.cameraRatio());
   const target = graph.nodes.find((n: any) => n.type === "Playbook" || n.type === "Initiative") || firstNote;
   await page.locator("#g-search").fill(target.label.slice(0, 14));
+  await expect(page.locator("#g-search")).toHaveAttribute("aria-expanded", "true");
   await page.locator("#g-search").press("Enter");
   await expect(page.locator("#g-panel h2")).toBeVisible();
+  await expect(page.locator("#g-search")).toHaveAttribute("aria-expanded", "false");
   await expect.poll(() => page.evaluate(() => (window as any).kfExplorer.cameraRatio())).toBeLessThan(before);
   await page.locator("#g-search").fill("zzqxnotaword");
   await page.locator("#g-search").press("Enter");
