@@ -335,13 +335,16 @@ function fitNodes(ids: string[], opts: { maxRatio?: number; besidePanel?: boolea
   const cx = c ? c.x : (x0 + x1) / 2, cy = c ? c.y : (y0 + y1) / 2;
   const span = c ? 2 * Math.max(cx - x0, x1 - cx, cy - y0, y1 - cy) : Math.max(x1 - x0, y1 - y0);
   const ratio = Math.min(opts.maxRatio ?? 1, Math.max(0.25, span * 1.25));
+  // Screen pixels to camera units: sigma fits the graph to the smaller side minus the stage padding (measured: on a
+  // 412 x 774 phone, 0.1 camera units move a node 31.6 px at ratio 1).
   const w = container.clientWidth || 1, h = container.clientHeight || 1;
+  const toCam = (px: number) => (px * ratio) / Math.max(1, Math.min(w, h) - 2 * 48);
   let dx = 0, dy = 0;
   if (!NARROW()) {
-    if (opts.besidePanel && !panel.hidden) dx += ((panel.offsetWidth + 28) / 2 / w) * ratio;
-    if (!legend.hidden && legend.offsetParent) dx -= ((legend.offsetWidth + 28) / 2 / w) * ratio;
+    if (opts.besidePanel && !panel.hidden) dx += toCam((panel.offsetWidth + 28) / 2);
+    if (!legend.hidden && legend.offsetParent) dx -= toCam((legend.offsetWidth + 28) / 2);
   } else if (opts.besidePanel && !panel.hidden) {
-    dy -= ((panel.offsetHeight / 2) / h) * ratio; // graph y grows upward: lower the camera to lift the nodes
+    dy -= toCam(panel.offsetHeight / 2); // a lower camera lifts the nodes above the bottom sheet
   }
   renderer.getCamera().animate({ x: cx + dx, y: cy + dy, ratio }, { duration: T(700), easing: "cubicInOut" });
 }

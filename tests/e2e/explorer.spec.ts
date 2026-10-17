@@ -7,6 +7,9 @@ const graph = JSON.parse(fs.readFileSync(path.resolve("public/graph.json"), "utf
 const notes = graph.nodes.filter((n: any) => n.type !== "Source" && n.type !== "Theme");
 const firstNote = notes[0];
 const shownCount = graph.nodes.filter((n: any) => n.type !== "Source").length;
+// Notes linked to it (in the text or declared), as the panel lists them; theme membership is not a link.
+const linkedOf = (id: string) =>
+  graph.edges.filter((e: any) => (e.origin === "link" || e.origin === "frontmatter") && (e.source === id || e.target === id)).map((e: any) => (e.source === id ? e.target : e.source));
 const neighbourOf = (id: string) =>
   graph.edges.filter((e: any) => e.origin !== "source" && (e.source === id || e.target === id)).map((e: any) => (e.source === id ? e.target : e.source));
 
@@ -65,7 +68,7 @@ test("clicking a node opens the panel; Escape closes it", async ({ page }) => {
 });
 
 test("?node= opens on that note, and panel neighbours navigate", async ({ page }) => {
-  const target = notes.find((n: any) => neighbourOf(n.id).length > 0) || firstNote;
+  const target = notes.find((n: any) => linkedOf(n.id).length > 0) || firstNote;
   await ready(page, "/graph/?node=" + encodeURIComponent(target.id));
   await expect(page.locator("#g-panel h2")).toHaveText(target.label);
   await expect.poll(() => page.evaluate(() => (window as any).kfExplorer.selected())).toBe(target.id);
