@@ -38,6 +38,7 @@ fi
 : "${KF_GRAPH:?set KF_GRAPH with KF_BUNDLE}"
 
 if [ ! -d "$WORK/quartz/.git" ]; then
+  rm -rf "$WORK/quartz"  # a build cache can restore the folder without its .git; git clone refuses a non-empty folder
   git clone --quiet --filter=blob:none https://github.com/jackyzha0/quartz.git "$WORK/quartz"
 fi
 git -C "$WORK/quartz" fetch --quiet origin "$REF" 2>/dev/null || git -C "$WORK/quartz" fetch --quiet origin
