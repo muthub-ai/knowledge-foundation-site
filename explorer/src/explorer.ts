@@ -294,13 +294,15 @@ function buildLegend() {
 
 // -- camera ----------------------------------------------------------------------------------------------------------
 function fitAll() { renderer.getCamera().animate({ x: 0.5, y: 0.5, ratio: 1, angle: 0 }, { duration: T(650), easing: "cubicInOut" }); }
-function fitNodes(ids: string[]) {
+function fitNodes(ids: string[], opts: { maxRatio?: number; besidePanel?: boolean } = {}) {
   const pts = ids.map((id) => renderer.getNodeDisplayData(id)).filter(Boolean);
   if (!pts.length) return;
   const xs = pts.map((p: any) => p.x), ys = pts.map((p: any) => p.y);
   const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-  const ratio = Math.min(1, Math.max(0.25, Math.max(x1 - x0, y1 - y0) * 1.35));
-  renderer.getCamera().animate({ x: (x0 + x1) / 2, y: (y0 + y1) / 2, ratio }, { duration: T(700), easing: "cubicInOut" });
+  const ratio = Math.min(opts.maxRatio ?? 1, Math.max(0.25, Math.max(x1 - x0, y1 - y0) * 1.35));
+  // With the panel open on a wide screen, centre the nodes in the space left of it.
+  const w = container.clientWidth, shift = opts.besidePanel && w > 760 ? ((panel.offsetWidth + 28) / 2 / w) * ratio : 0;
+  renderer.getCamera().animate({ x: (x0 + x1) / 2 + shift, y: (y0 + y1) / 2, ratio }, { duration: T(700), easing: "cubicInOut" });
 }
 
 // -- side panel ------------------------------------------------------------------------------------------------------
@@ -348,8 +350,8 @@ function focusNode(id: string) {
   const kind = graph.getNodeAttribute(id, "kind");
   if (offTypes.has(kind)) { offTypes.delete(kind); applyFilters(); }
   openPanel(id);
-  const d = renderer.getNodeDisplayData(id);
-  if (d) renderer.getCamera().animate({ x: d.x, y: d.y, ratio: Math.min(renderer.getCamera().ratio, 0.45) }, { duration: T(650), easing: "cubicInOut" });
+  // Frame the note with its neighbourhood (never wider than 85% of the map, so picking a note always zooms in).
+  fitNodes([...(activeSet() || [id])], { maxRatio: 0.85, besidePanel: true });
 }
 
 panel.addEventListener("click", (ev) => {
@@ -528,15 +530,15 @@ fetch("/graph.json")
           DEFAULT_STYLES.nodes,
           {
             shape: { attribute: "shape" }, labelColor: { attribute: "labelColor" }, cursor: "pointer", labelSize: 12.5,
-            backdropColor: { attribute: "page" }, backdropPadding: 5, backdropShadowColor: "rgba(0,0,0,0.18)", backdropShadowBlur: 10,
+            backdropColor: { attribute: "page" }, backdropPadding: 5, backdropCornerRadius: 8, backdropShadowColor: "rgba(0,0,0,0.18)", backdropShadowBlur: 10,
             opacity: (_a: any, s: any, gs: any) => (dimmed(s, gs) ? 1 - 0.86 * (gs.fade ?? 0) : 1),
           },
           { labelPosition: { attribute: "labelSide" } },
           {
             when: (a: any) => a.kind === "Theme",
             then: {
-              labelVisibility: "visible", labelSize: 15, labelFont: "Newsreader, Georgia, serif",
-              backdropVisibility: "visible", backdropArea: "label", backdropLabelPadding: 4, backdropShadowBlur: 6,
+              labelVisibility: "visible", labelSize: Math.round(15 * Math.max(0.8, SIZE_SCALE)), labelFont: "Newsreader, Georgia, serif",
+              backdropVisibility: "visible", backdropArea: "label", backdropLabelPadding: 5, backdropShadowBlur: 6, backdropCornerRadius: 8,
             },
           },
           { when: (_a: any, s: any, gs: any) => dimmed(s, gs) && (gs.fade ?? 0) > 0.5, then: { labelVisibility: "hidden", backdropVisibility: "hidden" } },

@@ -15,12 +15,17 @@ release (wiki/, graph.json)
 
 What a reader gets:
 - **Note pages** (Quartz). Each opens with a callout: reviewed by Muthu or not yet, last verified, drafted by whom,
-  re-check date, number of sources. Then the note, its sources with publication dates, See also, and Quartz's
-  backlinks, table of contents, popovers and tag list.
+  re-check date, number of sources. A note that summarises one of Muthu's essays leads the callout with "Read the full
+  essay on muthub.org", because the essay is the canonical page. Then the note, its sources with publication dates,
+  See also, and Quartz's backlinks, table of contents, popovers and tag list.
 - **Theme folders, search, the folder explorer, dark mode and RSS**, from Quartz.
-- **`/graph/`**: the whole graph in Sigma.js. It has hover highlighting, a side panel per note, search, filters by node
-  type and connection origin, a list view, zoom controls, and `?node=<id>` links from every note. It shares the dark-mode
-  choice with the Quartz pages.
+- **`/graph/`**: the whole graph in Sigma.js, designed as a map ([design notes](docs/explorer-design.md)): themes as
+  hubs on a ring, each theme's notes orbiting it in the theme's colour, shape by kind. It assembles itself on load;
+  hovering fades the rest of the map and lights a note's neighbourhood; a theme in the legend focuses its cluster; the
+  selected note glows and its panel opens with "Read on muthub.org" first for essays. Search suggests as you type ("/"),
+  filters by node type and connection origin, a list view, zoom controls, and `?node=<id>` links from every note (those
+  open at once, without the entrance). It shares the dark-mode choice with the Quartz pages, and
+  `prefers-reduced-motion` turns the animation off.
 - **For machines**: a Markdown twin of every note (`/<theme>/<note>.md`, the OKF file itself), `llms.txt`, the sitemap,
   and JSON-LD on every note.
 
@@ -47,8 +52,10 @@ the latest release (or the tag in `KF_RELEASE`), which is what Vercel does. The 
 3. Build and test.
 
 **The explorer:** `explorer/src/explorer.ts` is bundled with Sigma.js and graphology by `npm run build:explorer` into
-`explorer/dist/explorer.js`. The build script rebuilds it from npm every time. The committed copy is only there for
-machines without npm.
+`explorer/dist/explorer.js`. The build script rebuilds it from npm every time. The committed copy is for machines
+without npm, and CI fails when it differs from the npm build. When that happens on a pull request, CI's
+`bundle-handback` job pushes the npm build to the scratch branch `ci/explorer-bundle`; take it with
+`git fetch origin ci/explorer-bundle && git checkout FETCH_HEAD -- explorer/dist/explorer.js` and commit it.
 
 ## Test
 
@@ -66,11 +73,18 @@ Quartz page tests skip.
 CI (`.github/workflows/ci.yml`) runs everything on every pull request with the real Quartz build. Add the
 `CONFIDENTIAL_TERMS` secret here too, so the built site is scanned for confidential terms.
 
-## Deploy (once)
+## Deploy
 
-1. **Create the project.** In Vercel, go to Add New Project and import `muthub-ai/knowledge-foundation-site`.
-   `vercel.json` sets the install and build commands, the output folder, clean URLs and the headers.
-2. **Add the domain.** In Project → Settings → Domains, add `wiki.muthub.org`. At your DNS host, add a CNAME record
-   `wiki` → `cname.vercel-dns.com`.
-3. **Connect the deploy hook.** In Project → Settings → Git → Deploy Hooks, create one for `main`. Save its URL as the
-   `VERCEL_DEPLOY_HOOK` secret in the knowledge repository, so every release rebuilds the site.
+The Vercel project `knowledge-foundation-site` exists (created October 17, 2026) and is linked to this repository.
+`vercel.json` runs everything through `scripts/vercel_build.sh`, which installs the Python packages
+(`scripts/pip_install.sh` copes with Vercel's "externally managed" Python) and runs `scripts/build.sh`.
+
+- **Production** is `main` only. A merge to `main` deploys wiki.muthub.org. The project's "ignored build step" skips
+  any production build from another branch, as a guard. Production builds read the latest knowledge release.
+- **Domain:** `wiki.muthub.org`, verified. muthub.org's DNS is hosted by Vercel, so no record is needed.
+- **Previews:** every push to a branch gets a private preview (Vercel Authentication). A preview reads the knowledge
+  repository's branch named in the Vercel preview variable `KF_BRANCH` (set for this repository's `claude/initial-build`
+  branch while the two first pull requests are open; remove it after they merge) and otherwise the latest release.
+  When a preview build fails, its page shows the build log instead.
+- **Still to do once:** create a deploy hook for `main` (Project → Settings → Git → Deploy Hooks) and save its URL as
+  the `VERCEL_DEPLOY_HOOK` secret in the knowledge repository, so every knowledge release rebuilds the site.
