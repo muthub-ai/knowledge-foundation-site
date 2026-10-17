@@ -14,8 +14,11 @@ const themes = graph.nodes.filter((n: any) => n.type === "Theme");
 async function noHorizontalScroll(page: Page) {
   await page.waitForLoadState("networkidle").catch(() => {});
   const measure = () => page.evaluate(() => {
+    // vw is the visible width. Where Chromium draws a classic scrollbar (CI's phone profile does on long pages; real
+    // phones overlay it), the root's scroll range also spans the scrollbar's gutter, so the page itself is measured
+    // against the full window width and every element against the visible width.
     const vw = document.documentElement.clientWidth;
-    const over = document.documentElement.scrollWidth - vw;
+    const pageOver = document.documentElement.scrollWidth - Math.max(vw, window.innerWidth);
     // An element sticks out if its box does, or if its overflowing content (children, ::before/::after) does: measured
     // from where the element starts, not from 0, so a small element near the right edge with a wide pseudo is caught.
     const reach = (el: Element) => {
@@ -37,6 +40,7 @@ async function noHorizontalScroll(page: Page) {
     };
     const outside = [...document.documentElement.children].filter((el) => el !== document.head && el !== document.body).map(name).join(",");
     const env = `inner=${window.innerWidth} vv=${Math.round(window.visualViewport?.width ?? 0)}x${window.visualViewport?.scale ?? 1} se=${document.scrollingElement?.tagName} sw=${document.scrollingElement?.scrollWidth} outside-body=[${outside}]`;
+    const over = Math.max(pageOver, culprits.length ? Math.round(Math.max(...[...document.querySelectorAll("body *")].map(reach)) - vw) : 0);
     return { over, detail: `viewport ${vw}, ${env}, html ${document.documentElement.scrollWidth} {${box(document.documentElement)}}, body ${document.body.scrollWidth} {${box(document.body)}}; ${culprits.join("; ") || "no element inside body reaches past the edge"}` };
   });
   let r = await measure();
