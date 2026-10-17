@@ -388,12 +388,15 @@ function openPanel(id: string) {
   panel.innerHTML =
     `<div class="accent" data-bg="${esc(colour)}"></div>` +
     `<button class="close" type="button" aria-label="Close">×</button>` +
+    // The panel clips and this inner body scrolls: a scrolling element laid over the WebGL canvas kept the canvas from
+    // repainting in Chromium (seen on the phone bottom sheet), an inner scroller does not.
+    `<div class="g-panel-body">` +
     `<p class="kind"><span class="shape shape-${esc(SHAPE[n.type] || "circle")}" data-c="${esc(colour)}"></span>${esc(n.type)}${themeOf[id] ? ` · ${esc(byId[themeOf[id]].label)}` : ""}</p>` +
     `<h2 tabindex="-1">${esc(n.label)}</h2>` + (n.summary ? `<p class="summary">${esc(n.summary)}</p>` : "") + meta +
     (n.canonical
       ? `<p class="actions"><a class="open" href="${esc(n.canonical)}">Read on muthub.org <span aria-hidden="true">→</span></a><a class="wiki" href="${esc(n.url)}">Wiki summary</a></p>`
       : `<p class="actions"><a class="open" href="${esc(n.url)}">${isExternal(n.url) ? "Open source" : n.type === "Theme" ? "Open theme" : "Open note"} <span aria-hidden="true">→</span></a></p>`) +
-    lists.join("");
+    lists.join("") + `</div>`;
   applyColours(panel);
   panel.hidden = false;
   panel.classList.remove("in"); void panel.offsetWidth; panel.classList.add("in");
