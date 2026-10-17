@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block body_class %}graph-page{% endblock %}
+{% block footer %}{% endblock %}
+{% block main_class %}graph-main{% endblock %}
+{% block content %}
+<h1 class="sr">Graph</h1>
+<div class="explorer" id="explorer">
+  <div class="toolbar">
+    <label class="sr" for="g-search">Find a note</label>
+    <input id="g-search" type="search" placeholder="Find a note" autocomplete="off" list="g-names">
+    <datalist id="g-names"></datalist>
+    <details class="filters"><summary>Filters</summary>
+      <fieldset id="f-types"><legend>Node types</legend></fieldset>
+      <fieldset id="f-origins"><legend>Edges</legend></fieldset>
+    </details>
+    <button id="g-view" type="button" aria-pressed="false">List view</button>
+    <button id="g-reset" type="button">Reset</button>
+  </div>
+  <canvas id="g-canvas" aria-label="Knowledge graph. Use the list view for a text version." role="img"></canvas>
+  <div id="g-list" class="g-list" hidden></div>
+  <aside id="g-panel" class="g-panel" hidden aria-live="polite"></aside>
+  <p id="g-status" class="g-status muted"></p>
+</div>
+<script src="/static/explorer.js" defer></script>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% set canonical_url = site_url ~ page.url %}
+{% block head %}<script type="application/ld+json">{{ jsonld|safe }}</script>{% endblock %}
+{% block content %}
+<article class="note" data-kind="{{ kind }}" data-trust="{{ prov.trust }}">
+  <p class="crumbs"><a href="/{{ page.theme }}/">{{ theme_name }}</a> · <span class="kind">{{ kind }}</span>{% if prov.status != "stable" %} · <span class="status status-{{ prov.status }}">{{ prov.status }}</span>{% endif %}</p>
+  <h1>{{ page.title }}</h1>
+  <p class="lede">{{ description }}</p>
+  <aside class="provenance" aria-label="Provenance">
+    <dl>
+      <div><dt>Trust</dt><dd class="trust trust-{{ prov.trust }}">{% if prov.trust == "human-reviewed" %}Reviewed by Muthu{% elif prov.trust == "machine-confirmed" %}Machine-confirmed{% else %}Not yet reviewed{% endif %}</dd></div>
+      {% if prov.verified_at %}<div><dt>Last verified</dt><dd>{{ prov.verified_at }}</dd></div>{% endif %}
+      <div><dt>Drafted</dt><dd>{{ prov.generated_at }}{% if prov.generated_by %} by {{ prov.generated_by }}{% endif %}</dd></div>
+      {% if prov.stale_after %}<div><dt>Re-check by</dt><dd>{{ prov.stale_after }}</dd></div>{% endif %}
+      <div><dt>Sources</dt><dd>{{ sources|length }}</dd></div>
+    </dl>
+    {% if canonical %}<p class="canonical">The full essay is on <a href="{{ canonical }}">muthub.org</a>; this note summarises it.</p>{% endif %}
+  </aside>
+  <div class="prose">{{ body|safe }}</div>
+  {% if sources %}
+  <section class="sources" aria-labelledby="sources-h">
+    <h2 id="sources-h">Sources</h2>
+    <ol>
+    {% for s in sources %}
+      <li id="src-{{ s.id }}">{% if s.url %}<a href="{{ s.url }}">{{ s.title }}</a>{% else %}{{ s.title }}{% endif %}{% if s.published %} <span class="muted">· published {{ s.published }}</span>{% endif %}{% if s.copy_url %} <span class="muted">· <a href="{{ s.copy_url }}">copy</a></span>{% endif %}</li>
+    {% endfor %}
+    </ol>
+  </section>
+  {% endif %}
+  {% if see_also %}
+  <section class="see-also" aria-labelledby="see-h">
+    <h2 id="see-h">See also</h2>
+    <ul>{% for s in see_also %}<li><a href="{{ s.url }}">{{ s.title }}</a>{% if s.summary %} <span class="muted">{{ s.summary }}</span>{% endif %}</li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+  {% if backlinks %}
+  <section class="backlinks" aria-labelledby="back-h">
+    <h2 id="back-h">Linked from</h2>
+    <ul>{% for b in backlinks %}<li><a href="{{ b.url }}">{{ b.title }}</a></li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+  <p class="page-tools"><a href="/graph/?node={{ page.rel|urlencode }}">Show in graph</a> · <a href="{{ md_url }}">Markdown</a></p>
+</article>
+{% endblock %}

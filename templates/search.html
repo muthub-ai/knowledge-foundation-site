@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-head"><h1>Search</h1></header>
+<form class="search-box" role="search" onsubmit="return false">
+  <label class="sr" for="q">Search the wiki</label>
+  <input id="q" name="q" type="search" placeholder="Search notes" autocomplete="off" autofocus>
+</form>
+<p id="search-status" class="muted" aria-live="polite"></p>
+<ol id="results" class="list results"></ol>
+<script src="/static/search.js" defer></script>
+{% endblock %}

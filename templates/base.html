@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% if title and title != site.name %}{{ title }} · {% endif %}{{ site.name }}</title>
+<meta name="description" content="{{ description }}">
+{% if canonical_url %}<link rel="canonical" href="{{ canonical_url }}">{% endif %}
+<meta property="og:title" content="{{ title }}">
+<meta property="og:description" content="{{ description }}">
+<meta property="og:site_name" content="{{ site.name }}">
+{% if md_url %}<link rel="alternate" type="text/markdown" href="{{ md_url }}">{% endif %}
+<link rel="alternate" type="application/rss+xml" title="{{ site.name }}" href="/rss.xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/theme.js"></script>
+{% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="/">{{ site.name }}</a>
+    <nav aria-label="Main">
+      <a href="/graph/">Graph</a>
+      <a href="/search/">Search</a>
+      <a href="{{ site.canonical_site }}/writing">Essays</a>
+      <button class="theme-toggle" type="button" aria-label="Toggle dark mode">◐</button>
+    </nav>
+  </div>
+</header>
+<main id="main" class="{% block main_class %}wrap{% endblock %}">
+{% block content %}{% endblock %}
+</main>
+{% block footer %}<footer class="site-footer">
+  <div class="wrap">
+    <p>Kept by <a href="{{ site.author.url }}">{{ site.author.name }}</a> with an LLM librarian. Notes are drafted by machine and marked as reviewed only after he reviews them. Text under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</p>
+    <p><a href="/llms.txt">llms.txt</a> · <a href="/rss.xml">RSS</a> · <a href="/graph.json">Graph data</a> · <a href="https://github.com/muthub-ai/knowledge-foundation">Source</a> · Built {{ built }}</p>
+  </div>
+</footer>{% endblock %}
+</body>
+</html>

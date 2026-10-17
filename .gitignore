@@ -1,0 +1,6 @@
+public/
+.release/
+__pycache__/
+test-results/
+playwright-report/
+node_modules/
