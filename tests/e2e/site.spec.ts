@@ -16,11 +16,23 @@ async function noHorizontalScroll(page: Page) {
   const measure = () => page.evaluate(() => {
     const vw = document.documentElement.clientWidth;
     const over = document.documentElement.scrollWidth - vw;
-    const culprits = [...document.querySelectorAll("body, body *")]
-      .filter((el) => el.getBoundingClientRect().right > vw + 1 || (el as HTMLElement).scrollWidth > vw + 1 && getComputedStyle(el).overflowX === "visible")
+    // An element sticks out if its box does, or if its overflowing content (children, ::before/::after) does: measured
+    // from where the element starts, not from 0, so a small element near the right edge with a wide pseudo is caught.
+    const reach = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      const s = getComputedStyle(el);
+      return Math.max(r.right, s.overflowX === "visible" ? r.left + (el as HTMLElement).scrollWidth : 0);
+    };
+    const pseudo = (el: Element) => ["::before", "::after"]
+      .filter((p) => { const c = getComputedStyle(el, p).content; return c && c !== "none" && c !== "normal"; })
+      .map((p) => `${p}{${getComputedStyle(el, p).position} w=${getComputedStyle(el, p).width}}`).join("");
+    const name = (el: Element) => `${el.tagName.toLowerCase()}${el.id ? "#" + el.id : ""}${[...el.classList].map((c) => "." + c).join("")}`;
+    const culprits = [...document.querySelectorAll("body *")]
+      .filter((el) => reach(el) > vw + 1)
       .slice(-8)
-      .map((el) => `${el.tagName.toLowerCase()}${el.id ? "#" + el.id : ""}.${[...el.classList].join(".")} right=${Math.round(el.getBoundingClientRect().right)} sw=${(el as HTMLElement).scrollWidth}`);
-    return { over, detail: `viewport ${vw}, html ${document.documentElement.scrollWidth}, body ${document.body.scrollWidth}; ${culprits.join("; ")}` };
+      .map((el) => `${name(el)} right=${Math.round(el.getBoundingClientRect().right)} reach=${Math.round(reach(el))} ${pseudo(el)}`);
+    const box = (el: Element) => { const s = getComputedStyle(el); return `w=${s.width} m=${s.marginLeft}/${s.marginRight} ox=${s.overflowX} ${pseudo(el)}`; };
+    return { over, detail: `viewport ${vw}, html ${document.documentElement.scrollWidth} {${box(document.documentElement)}}, body ${document.body.scrollWidth} {${box(document.body)}}; ${culprits.join("; ") || "no element inside body reaches past the edge"}` };
   });
   let r = await measure();
   for (let i = 0; i < 10 && r.over > 1; i++) {

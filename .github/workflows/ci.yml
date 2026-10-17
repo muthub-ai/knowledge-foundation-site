@@ -44,6 +44,15 @@ jobs:
       - name: Build with Quartz (also rebuilds the explorer from npm)
         run: bash .github/ci-run.sh "build" bash scripts/build.sh
         env: { KF_BUNDLE: .kf/wiki, KF_GRAPH: .kf/dist/graph.json }
+      # build.sh rebuilt explorer/dist/explorer.js from npm. The committed copy (used where npm is unreachable) must match.
+      - name: Explorer bundle is up to date
+        run: |
+          if ! git diff --quiet -- explorer/dist/explorer.js; then
+            fresh=$(sha256sum explorer/dist/explorer.js | cut -c1-16); committed=$(git show HEAD:explorer/dist/explorer.js | sha256sum | cut -c1-16)
+            echo "::error title=explorer bundle out of date::committed ${committed}, rebuilt from npm ${fresh}. Run npm ci && npm run build:explorer and commit explorer/dist/explorer.js."
+            exit 1
+          fi
+          echo "explorer bundle matches the npm build ($(sha256sum explorer/dist/explorer.js | cut -c1-16))"
       - run: npx playwright install --with-deps chromium
       - name: Browser tests (Quartz pages and the graph explorer)
         run: bash .github/ci-run.sh "browser tests" npx playwright test
