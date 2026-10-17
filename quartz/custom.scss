@@ -12,3 +12,10 @@ footer ul {
 article {
   overflow-wrap: anywhere;
 }
+
+// Quartz sets html { width: 100vw; overflow-x: hidden }. 100vw counts the vertical scrollbar, so on long pages the root
+// is wider than the visible area (16px on CI's phone profile; on desktops with classic scrollbars the right edge of the
+// page is clipped under the scrollbar). 100% is the visible width.
+html {
+  width: 100%;
+}
