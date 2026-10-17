@@ -9,18 +9,25 @@ const graph = JSON.parse(fs.readFileSync(path.resolve("public/graph.json"), "utf
 const notes = graph.nodes.filter((n: any) => n.type !== "Source" && n.type !== "Theme");
 const themes = graph.nodes.filter((n: any) => n.type === "Theme");
 
-// No sideways scrolling; on failure, name the elements that stick out past the right edge.
+// No sideways scrolling. Waits up to 5 s for the layout to settle (fonts, Quartz's scripts); on failure it names the
+// html/body widths and any element sticking out past the right edge, including through ::before/::after.
 async function noHorizontalScroll(page: Page) {
-  const report = await page.evaluate(() => {
+  await page.waitForLoadState("networkidle").catch(() => {});
+  const measure = () => page.evaluate(() => {
     const vw = document.documentElement.clientWidth;
     const over = document.documentElement.scrollWidth - vw;
-    const culprits = [...document.querySelectorAll("body *")]
-      .filter((el) => el.getBoundingClientRect().right > vw + 1)
-      .slice(0, 8)
-      .map((el) => `${el.tagName.toLowerCase()}${el.id ? "#" + el.id : ""}.${[...el.classList].join(".")} right=${Math.round(el.getBoundingClientRect().right)}`);
-    return { over, culprits };
+    const culprits = [...document.querySelectorAll("body, body *")]
+      .filter((el) => el.getBoundingClientRect().right > vw + 1 || (el as HTMLElement).scrollWidth > vw + 1 && getComputedStyle(el).overflowX === "visible")
+      .slice(-8)
+      .map((el) => `${el.tagName.toLowerCase()}${el.id ? "#" + el.id : ""}.${[...el.classList].join(".")} right=${Math.round(el.getBoundingClientRect().right)} sw=${(el as HTMLElement).scrollWidth}`);
+    return { over, detail: `viewport ${vw}, html ${document.documentElement.scrollWidth}, body ${document.body.scrollWidth}; ${culprits.join("; ")}` };
   });
-  expect(report.over, `wider than the screen by ${report.over}px: ${report.culprits.join("; ")}`).toBeLessThanOrEqual(1);
+  let r = await measure();
+  for (let i = 0; i < 10 && r.over > 1; i++) {
+    await page.waitForTimeout(500);
+    r = await measure();
+  }
+  expect(r.over, `wider than the screen by ${r.over}px: ${r.detail}`).toBeLessThanOrEqual(1);
 }
 
 test("home page: title, themes and a same-site link to the graph", async ({ page }) => {
