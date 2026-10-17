@@ -16,6 +16,8 @@ jobs:
     name: build and test
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      bundle_drift: ${{ steps.drift.outputs.drift }}
     steps:
       - uses: actions/checkout@v4
       # The knowledge repository's main, or (only while that is still empty) its first pull-request branch.
@@ -46,17 +48,52 @@ jobs:
         env: { KF_BUNDLE: .kf/wiki, KF_GRAPH: .kf/dist/graph.json }
       # build.sh rebuilt explorer/dist/explorer.js from npm. The committed copy (used where npm is unreachable) must match.
       - name: Explorer bundle is up to date
+        id: drift
         run: |
           if ! git diff --quiet -- explorer/dist/explorer.js; then
+            echo "drift=true" >> "$GITHUB_OUTPUT"
             fresh=$(sha256sum explorer/dist/explorer.js | cut -c1-16); committed=$(git show HEAD:explorer/dist/explorer.js | sha256sum | cut -c1-16)
             echo "::error title=explorer bundle out of date::committed ${committed}, rebuilt from npm ${fresh}. Run npm ci && npm run build:explorer and commit explorer/dist/explorer.js."
             exit 1
           fi
           echo "explorer bundle matches the npm build ($(sha256sum explorer/dist/explorer.js | cut -c1-16))"
+      - if: failure() && steps.drift.outputs.drift == 'true'
+        uses: actions/upload-artifact@v4
+        with: { name: explorer-bundle, path: explorer/dist/explorer.js, retention-days: 3 }
+      # A stale bundle alone still lets the browser tests run (they use the fresh npm build).
       - run: npx playwright install --with-deps chromium
+        if: ${{ !cancelled() && (steps.drift.outcome == 'success' || steps.drift.outputs.drift == 'true') }}
       - name: Browser tests (Quartz pages and the graph explorer)
+        if: ${{ !cancelled() && (steps.drift.outcome == 'success' || steps.drift.outputs.drift == 'true') }}
         run: bash .github/ci-run.sh "browser tests" npx playwright test
         env: { CI: "true", KF_QUARTZ: "1" }
       - uses: actions/upload-artifact@v4
         if: failure()
         with: { name: playwright-report, path: playwright-report, retention-days: 7 }
+
+  # When the committed explorer bundle is stale, hand the npm build back on the scratch branch ci/explorer-bundle so it
+  # can be reviewed and committed to the pull request (by a person or the curator agent; CI never changes the PR
+  # branch). This job runs no npm code and is the only one with write access.
+  bundle-handback:
+    name: hand back the rebuilt explorer bundle
+    needs: test
+    if: always() && needs.test.outputs.bundle_drift == 'true' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: explorer-bundle, path: bundle }
+      - name: Push to ci/explorer-bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git init -q -b ci/explorer-bundle out && cd out
+          mkdir -p explorer/dist && cp ../bundle/explorer.js explorer/dist/explorer.js
+          git add explorer/dist/explorer.js
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -qm "explorer.js rebuilt from npm for ${HEAD_SHA}"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/ci/explorer-bundle
+          echo "rebuilt bundle $(sha256sum explorer/dist/explorer.js | cut -c1-16) pushed to ci/explorer-bundle"
