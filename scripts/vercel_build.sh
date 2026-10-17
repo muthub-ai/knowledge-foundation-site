@@ -7,8 +7,30 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LOG="$ROOT/.build/vercel.log"
 mkdir -p "$ROOT/.build"
+
+# Python: Vercel's build image (Amazon Linux 2023) has an old system python3, often without pip, next to newer
+# Pythons. Use the newest 3.11+ (install 3.12 with dnf if there is none) in a virtual environment, which brings its
+# own pip and sidesteps the "externally managed" system install; put it first on PATH for build.sh.
+PY=""
+for c in python3.14 python3.13 python3.12 python3.11 python3; do
+  if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+    PY="$(command -v "$c")"; break
+  fi
+done
+if [ -z "$PY" ] && command -v dnf >/dev/null 2>&1; then
+  dnf install -y -q python3.12 python3.12-pip >/dev/null 2>&1 && PY="$(command -v python3.12 || true)"
+fi
+VENV_NOTE="no 3.11+ python found"
+if [ -n "$PY" ]; then
+  if "$PY" -m venv "$ROOT/.build/venv" >/dev/null 2>&1; then
+    export PATH="$ROOT/.build/venv/bin:$PATH"; VENV_NOTE="venv from $PY"
+  else
+    VENV_NOTE="venv failed; using $PY directly"; mkdir -p "$ROOT/.build/bin"; ln -sf "$PY" "$ROOT/.build/bin/python3"; export PATH="$ROOT/.build/bin:$PATH"
+  fi
+fi
 {
   echo "== environment: VERCEL_ENV=${VERCEL_ENV:-} ref=${VERCEL_GIT_COMMIT_REF:-} sha=${VERCEL_GIT_COMMIT_SHA:-} KF_BRANCH=${KF_BRANCH:-}"
+  echo "== python: $VENV_NOTE"
   echo "== $(command -v python3) $(python3 --version 2>&1) | $(python3 -m pip --version 2>&1) | node $(node --version 2>&1) | $(git --version 2>&1)"
   echo "== install" && bash "$ROOT/scripts/pip_install.sh" -r "$ROOT/requirements.txt" &&
   echo "== build" && bash "$ROOT/scripts/build.sh"
