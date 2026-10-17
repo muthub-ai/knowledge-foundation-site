@@ -163,7 +163,7 @@ function layout(nodes: GNode[], edges: GEdge[]) {
       if (!vx && !vy) { vx = h.x; vy = h.y; }
       return Math.atan2(vy, vx);
     };
-    const r1 = 15 + 1.05 * ids.length, cap = Math.max(6, Math.floor((TAU * r1) / 7.5));
+    const r1 = 19 + 1.15 * ids.length, cap = Math.max(6, Math.floor((TAU * r1) / 7.5));
     for (let ringNo = 0, start = 0; start < ids.length; ringNo++, start += cap) {
       const chunk = ids.slice(start, start + cap).map((id) => ({ id, p: pref(id) })).sort((a, b) => a.p - b.p);
       const r = r1 + ringNo * 9, step = TAU / chunk.length;
@@ -532,9 +532,17 @@ fetch("/graph.json")
             opacity: (_a: any, s: any, gs: any) => (dimmed(s, gs) ? 1 - 0.86 * (gs.fade ?? 0) : 1),
           },
           { labelPosition: { attribute: "labelSide" } },
-          { when: (a: any) => a.kind === "Theme", then: { labelVisibility: "visible", labelSize: 15, labelFont: "Newsreader, Georgia, serif" } },
-          { when: (_a: any, s: any, gs: any) => dimmed(s, gs) && (gs.fade ?? 0) > 0.5, then: { labelVisibility: "hidden" } },
-          { whenState: "isActive", then: { labelVisibility: "visible", depth: "topNodes" } },
+          {
+            when: (a: any) => a.kind === "Theme",
+            then: {
+              labelVisibility: "visible", labelSize: 15, labelFont: "Newsreader, Georgia, serif",
+              backdropVisibility: "visible", backdropArea: "label", backdropLabelPadding: 4, backdropShadowBlur: 6,
+            },
+          },
+          { when: (_a: any, s: any, gs: any) => dimmed(s, gs) && (gs.fade ?? 0) > 0.5, then: { labelVisibility: "hidden", backdropVisibility: "hidden" } },
+          // Neighbours' labels go through sigma's collision check ("auto"); the hovered and selected ones always show.
+          { whenState: "isActive", then: { labelVisibility: "auto", depth: "topNodes" } },
+          { when: (a: any, s: any) => s.isActive && a.kind === "Theme", then: { labelVisibility: "visible" } },
           { whenState: "isHovered", then: { backdropVisibility: "visible", labelVisibility: "visible" } },
           {
             whenState: "isHighlighted",
