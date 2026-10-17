@@ -28,6 +28,7 @@ CALLOUT = {"human-reviewed": ("success", "Reviewed by Muthu"), "machine-confirme
            "unverified": ("info", "Not yet reviewed")}
 # What a note with canonical_essay summarises, by kind (the page on muthub.org is the real thing).
 CANONICAL_THING = {"Initiative": "case study", "Playbook": "playbook"}
+HOME_TITLE = "Muthu Bommiah's working knowledge"
 READ_ORIGINAL = re.compile(r"(?:^|\n)# Read the original\n[\s\S]*?(?=\n# |\n\[\^[^\]\n]+\]:|\Z)")  # keeps footnotes
 
 
@@ -120,7 +121,8 @@ class Stager:
             lines.append(f"- [{t['name']}](/{t['slug']}/): {t['description']} ({len(t['notes'])} note{'' if len(t['notes']) == 1 else 's'})")
         recent = sorted(notes, key=lambda n: last_verified(n.fm) or str((n.fm.get("generated") or {}).get("at", "")), reverse=True)[:8]
         lines += ["", "## Recently updated", ""] + [f"- [{n.title}]({n.url})" for n in recent]
-        return _dump({"title": cfg["name"], "description": cfg["description"]}) + "\n" + "\n".join(lines) + "\n"
+        # Quartz appends " · <site name>" to every title, so the home page is not titled with the site name again.
+        return _dump({"title": HOME_TITLE, "description": cfg["description"]}) + "\n" + "\n".join(lines) + "\n"
 
     def write(self, out: Path) -> dict[str, int]:
         if out.exists():

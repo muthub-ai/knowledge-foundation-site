@@ -54,7 +54,7 @@ async function noHorizontalScroll(page: Page) {
 test("home page: title, themes and a same-site link to the graph", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveTitle(/Knowledge Foundation/);
-  await expect(page).not.toHaveTitle(/^Untitled/);
+  await expect(page).not.toHaveTitle(/^Untitled|Knowledge Foundation · Knowledge Foundation/);
   await expect(page.locator("article")).toContainText("Themes");
   await expect(page.locator("article")).not.toContainText(/^\s*title:/m);
   await expect(page.locator('article a[href$="/graph/"]').first()).toBeVisible();

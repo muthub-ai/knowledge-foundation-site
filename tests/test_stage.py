@@ -105,7 +105,7 @@ class StageFixture(unittest.TestCase):
 
     def test_home_and_theme_pages(self):
         home = (self.out / "index.md").read_text()
-        self.assertEqual(front(home)["title"], "Knowledge Foundation")
+        self.assertEqual(front(home)["title"], "Muthu Bommiah's working knowledge")
         self.assertIn("- [Governed AI](/governed-ai/): ", home)
         self.assertIn("(1 note)", home)
         self.assertIn("2 notes, 1 reviewed by Muthu so far.", home)
