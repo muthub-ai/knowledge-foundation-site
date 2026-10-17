@@ -33,6 +33,7 @@ git -C "$WORK/quartz" checkout --quiet --force "$REF"
 
 python3 -m kfsite stage --bundle "$KF_BUNDLE" --out "$WORK/quartz/content"
 cp "$ROOT/quartz.config.yaml" "$WORK/quartz/quartz.config.yaml"
+cp "$ROOT/quartz/custom.scss" "$WORK/quartz/quartz/styles/custom.scss"
 
 (
   cd "$WORK/quartz"

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, Page } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -9,13 +9,26 @@ const graph = JSON.parse(fs.readFileSync(path.resolve("public/graph.json"), "utf
 const notes = graph.nodes.filter((n: any) => n.type !== "Source" && n.type !== "Theme");
 const themes = graph.nodes.filter((n: any) => n.type === "Theme");
 
+// No sideways scrolling; on failure, name the elements that stick out past the right edge.
+async function noHorizontalScroll(page: Page) {
+  const report = await page.evaluate(() => {
+    const vw = document.documentElement.clientWidth;
+    const over = document.documentElement.scrollWidth - vw;
+    const culprits = [...document.querySelectorAll("body *")]
+      .filter((el) => el.getBoundingClientRect().right > vw + 1)
+      .slice(0, 8)
+      .map((el) => `${el.tagName.toLowerCase()}${el.id ? "#" + el.id : ""}.${[...el.classList].join(".")} right=${Math.round(el.getBoundingClientRect().right)}`);
+    return { over, culprits };
+  });
+  expect(report.over, `wider than the screen by ${report.over}px: ${report.culprits.join("; ")}`).toBeLessThanOrEqual(1);
+}
+
 test("home page: title, themes and a same-site link to the graph", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveTitle(/Knowledge Foundation/);
   await expect(page.locator("article")).toContainText("Themes");
   await expect(page.locator('article a[href$="/graph/"]').first()).toBeVisible();
-  const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(over).toBeLessThanOrEqual(1);
+  await noHorizontalScroll(page);
 });
 
 test("a note page shows the provenance callout, sources and JSON-LD", async ({ page }) => {
@@ -25,6 +38,7 @@ test("a note page shows the provenance callout, sources and JSON-LD", async ({ p
   await expect(page.locator("article")).toContainText("Sources");
   const ld = JSON.parse((await page.locator('script[data-kf="jsonld"]').textContent())!);
   expect([].concat(ld)[0]["@type"]).toBe("Article");
+  await noHorizontalScroll(page);
   const graphLink = page.locator('article a[href^="/graph/?node="]').first();
   await expect(graphLink).toHaveAttribute("href", "/graph/?node=" + encodeURIComponent(n.id));
   await graphLink.click();
