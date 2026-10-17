@@ -23,7 +23,7 @@ if [ -z "${KF_BUNDLE:-}" ] && [ -n "${KF_BRANCH:-}" ]; then
   # site CI does (releases exist only for the knowledge repository's main). Production never sets KF_BRANCH.
   rm -rf "$WORK/kf"
   git clone --quiet --depth 1 -b "$KF_BRANCH" "https://github.com/${KF_REPO:-muthub-ai/knowledge-foundation}" "$WORK/kf"
-  python3 -m pip install --quiet -r "$WORK/kf/requirements.txt"
+  bash "$ROOT/scripts/pip_install.sh" -r "$WORK/kf/requirements.txt"
   (cd "$WORK/kf" && PYTHONPATH=tools python3 -m kb graph --out dist)
   KF_BUNDLE="$WORK/kf/wiki"
   KF_GRAPH="$WORK/kf/dist/graph.json"
