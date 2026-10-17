@@ -1,0 +1,20 @@
+@use "./variables.scss" as *;
+
+// Knowledge Foundation overrides, copied over quartz/styles/custom.scss by scripts/build.sh.
+
+// The footer's links sit in one flex row that does not wrap; five links overflow a phone screen.
+footer ul {
+  flex-wrap: wrap;
+  row-gap: 0.25rem;
+}
+
+// Long URLs and identifiers in notes must not push the page wider than the screen.
+article {
+  overflow-wrap: anywhere;
+}
+
+// Quartz sets html { width: 100vw; overflow-x: hidden }. 100vw counts the vertical scrollbar, so on desktops with classic
+// scrollbars (Windows, Linux) the right edge of a long page is clipped under the scrollbar. 100% is the visible width.
+html {
+  width: 100%;
+}

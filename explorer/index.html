@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Graph · Knowledge Foundation</title>
+<meta name="description" content="An interactive map of the Knowledge Foundation notes, their sources and how they connect.">
+<link rel="canonical" href="https://wiki.muthub.org/graph">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7' fill='%230b6b7a'/%3E%3Ccircle cx='6' cy='8' r='3' fill='%23b5650f'/%3E%3Ccircle cx='26' cy='9' r='3' fill='%233d4fc4'/%3E%3Ccircle cx='24' cy='25' r='3' fill='%23b2306b'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/graph/explorer.css">
+<script src="/graph/theme.js"></script>
+</head>
+<body>
+<a class="skip" href="#g-search">Skip to the graph search</a>
+<header class="bar">
+  <a class="brand" href="/">Knowledge Foundation</a>
+  <nav aria-label="Main">
+    <a href="/">Notes</a>
+    <a href="https://muthub.org/writing">Essays</a>
+    <button class="theme-toggle" type="button" aria-label="Toggle dark mode">◐</button>
+  </nav>
+</header>
+<main class="explorer" id="explorer">
+  <h1 class="sr">Graph</h1>
+  <div class="toolbar">
+    <label class="sr" for="g-search">Find a note</label>
+    <div class="search">
+      <input id="g-search" type="search" placeholder="Find a note" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="g-suggest">
+      <kbd aria-hidden="true">/</kbd>
+      <ul id="g-suggest" class="suggest" role="listbox" aria-label="Matching notes" hidden></ul>
+    </div>
+    <details class="filters"><summary>Filters</summary>
+      <div class="filters-pop">
+        <fieldset id="f-types"><legend>Node types</legend></fieldset>
+        <fieldset id="f-origins"><legend>Connections</legend></fieldset>
+      </div>
+    </details>
+    <button id="g-view" type="button" aria-pressed="false">List view</button>
+    <button id="g-reset" type="button">Reset</button>
+  </div>
+  <div id="g-canvas" class="g-canvas" role="img" aria-label="Knowledge graph. Use the list view for a text version."></div>
+  <div id="g-list" class="g-list" hidden></div>
+  <nav id="g-legend" class="legend" aria-label="Themes" hidden></nav>
+  <aside id="g-panel" class="g-panel" hidden aria-label="Selected note"></aside>
+  <div id="g-empty" class="g-empty" hidden><p>Nothing to show: every node type is filtered out.</p><button id="g-empty-reset" type="button">Reset filters</button></div>
+  <p id="g-announce" class="sr" aria-live="polite"></p>
+  <div class="zoom" role="group" aria-label="Zoom">
+    <button id="g-zoom-in" type="button" aria-label="Zoom in">+</button>
+    <button id="g-zoom-out" type="button" aria-label="Zoom out">−</button>
+    <button id="g-fit" type="button" aria-label="Fit the whole graph">⤢</button>
+  </div>
+  <p id="g-status" class="g-status" aria-live="polite"></p>
+  <noscript><p class="g-status">The graph needs JavaScript. <a href="/graph.json">The graph data</a> is available as JSON.</p></noscript>
+</main>
+<script src="/graph/explorer.js" defer></script>
+</body>
+</html>

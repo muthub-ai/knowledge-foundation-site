@@ -1,0 +1,104 @@
+name: ci
+
+# Builds wiki.muthub.org exactly as Vercel does (Quartz 5 at quartz.ref over the knowledge repo's current main) and tests
+# it: unit tests, the explorer bundle is up to date, the browser tests on desktop and mobile. Branch protection on main
+# requires this check.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      bundle_drift: ${{ steps.drift.outputs.drift }}
+    steps:
+      - uses: actions/checkout@v4
+      # The knowledge repository's main, or (only while that is still empty) its first pull-request branch.
+      - name: The knowledge repository
+        run: |
+          git clone --quiet --depth 1 https://github.com/muthub-ai/knowledge-foundation .kf
+          if [ ! -d .kf/wiki ]; then git -C .kf fetch --quiet --depth 1 origin claude/initial-build && git -C .kf checkout --quiet FETCH_HEAD; fi
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: pip install -r requirements.txt -r requirements-dev.txt -r .kf/requirements.txt
+      - name: Graph from the knowledge repository
+        run: bash ../.github/ci-run.sh "graph" python -m kb graph --out dist
+        env: { PYTHONPATH: tools }
+        working-directory: .kf
+      - name: Confidential terms from the secret (written to a temp file, never printed)
+        run: printf '%s\n' "$TERMS" | tr '|' '\n' > "$RUNNER_TEMP/terms.txt"
+        env: { TERMS: "${{ secrets.CONFIDENTIAL_TERMS }}" }
+      - name: Unit tests
+        run: bash .github/ci-run.sh "unit tests" python -m unittest discover -s tests -v
+        env:
+          KF_BUNDLE: .kf/wiki
+          KF_GRAPH: .kf/dist/graph.json
+          CONFIDENTIAL_TERMS_FILE: ${{ runner.temp }}/terms.txt
+      - name: Build with Quartz (also rebuilds the explorer from npm)
+        run: bash .github/ci-run.sh "build" bash scripts/build.sh
+        env: { KF_BUNDLE: .kf/wiki, KF_GRAPH: .kf/dist/graph.json }
+      # build.sh rebuilt explorer/dist/explorer.js from npm (and wrote package-lock.json if there was none). The committed
+      # copies must match: the bundle is what ships where npm is unreachable, the lockfile pins what CI built it from.
+      - name: Explorer bundle and lockfile are up to date
+        id: drift
+        run: |
+          changed=$(git status --porcelain -- explorer/dist/explorer.js package-lock.json)
+          if [ -n "$changed" ]; then
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            fresh=$(sha256sum explorer/dist/explorer.js | cut -c1-16)
+            echo "::error title=explorer bundle or lockfile out of date::Changed: $(echo $changed | tr '\n' ' '). Rebuilt bundle ${fresh}. CI pushes both to ci/explorer-bundle-pr-<pull request>; commit them (README, The explorer)."
+            exit 1
+          fi
+          echo "explorer bundle matches the npm build ($(sha256sum explorer/dist/explorer.js | cut -c1-16)); lockfile unchanged"
+      - if: failure() && steps.drift.outputs.drift == 'true'
+        uses: actions/upload-artifact@v4
+        with: { name: explorer-bundle, path: "explorer/dist/explorer.js\npackage-lock.json", retention-days: 3 }
+      # A stale bundle alone still lets the browser tests run (they use the fresh npm build).
+      - run: npx playwright install --with-deps chromium
+        if: ${{ !cancelled() && (steps.drift.outcome == 'success' || steps.drift.outputs.drift == 'true') }}
+      - name: Browser tests (Quartz pages and the graph explorer)
+        if: ${{ !cancelled() && (steps.drift.outcome == 'success' || steps.drift.outputs.drift == 'true') }}
+        run: bash .github/ci-run.sh "browser tests" npx playwright test
+        env: { CI: "true", KF_QUARTZ: "1" }
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: playwright-report, path: playwright-report, retention-days: 7 }
+
+  # When the committed explorer bundle is stale, hand the npm build back on the scratch branch ci/explorer-bundle-pr-<pull request> so it
+  # can be reviewed and committed to the pull request (by a person or the curator agent; CI never changes the PR
+  # branch). This job runs no npm code and is the only one with write access.
+  bundle-handback:
+    name: hand back the rebuilt explorer bundle and lockfile
+    needs: test
+    if: always() && needs.test.outputs.bundle_drift == 'true' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: explorer-bundle, path: bundle }
+      - name: Push to ci/explorer-bundle-pr-<pull request>
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          git init -q -b "ci/explorer-bundle-pr-$PR" out && cd out
+          mkdir -p explorer/dist
+          cp ../bundle/explorer/dist/explorer.js explorer/dist/explorer.js
+          cp ../bundle/package-lock.json package-lock.json
+          git add explorer/dist/explorer.js package-lock.json
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -qm "explorer.js and package-lock.json from npm for ${HEAD_SHA}"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/ci/explorer-bundle-pr-$PR"
+          echo "rebuilt bundle $(sha256sum explorer/dist/explorer.js | cut -c1-16) pushed to ci/explorer-bundle-pr-$PR"
