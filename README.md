@@ -55,8 +55,8 @@ the latest release (or the tag in `KF_RELEASE`), which is what Vercel does. The 
 `explorer/dist/explorer.js`. The build script rebuilds it from npm every time. The committed copy is for machines
 without npm. The npm packages are locked in `package-lock.json` (`build.sh` runs `npm ci`). CI fails when the committed
 bundle or lockfile differs from what it built; on a pull request its `bundle-handback` job then pushes both to the
-scratch branch `ci/explorer-bundle/<pull request number>`. Take them with
-`git fetch origin ci/explorer-bundle/<n> && git checkout FETCH_HEAD -- explorer/dist/explorer.js package-lock.json` and
+scratch branch `ci/explorer-bundle-pr-<pull request number>`. Take them with
+`git fetch origin ci/explorer-bundle-pr-<n> && git checkout FETCH_HEAD -- explorer/dist/explorer.js package-lock.json` and
 commit. Vercel ignores `ci/*` branches.
 
 ## Test

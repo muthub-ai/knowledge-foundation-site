@@ -55,7 +55,7 @@ jobs:
           if [ -n "$changed" ]; then
             echo "drift=true" >> "$GITHUB_OUTPUT"
             fresh=$(sha256sum explorer/dist/explorer.js | cut -c1-16)
-            echo "::error title=explorer bundle or lockfile out of date::Changed: $(echo $changed | tr '\n' ' '). Rebuilt bundle ${fresh}. CI pushes both to ci/explorer-bundle/<pull request>; commit them (README, The explorer)."
+            echo "::error title=explorer bundle or lockfile out of date::Changed: $(echo $changed | tr '\n' ' '). Rebuilt bundle ${fresh}. CI pushes both to ci/explorer-bundle-pr-<pull request>; commit them (README, The explorer)."
             exit 1
           fi
           echo "explorer bundle matches the npm build ($(sha256sum explorer/dist/explorer.js | cut -c1-16)); lockfile unchanged"
@@ -73,7 +73,7 @@ jobs:
         if: failure()
         with: { name: playwright-report, path: playwright-report, retention-days: 7 }
 
-  # When the committed explorer bundle is stale, hand the npm build back on the scratch branch ci/explorer-bundle/<pull request> so it
+  # When the committed explorer bundle is stale, hand the npm build back on the scratch branch ci/explorer-bundle-pr-<pull request> so it
   # can be reviewed and committed to the pull request (by a person or the curator agent; CI never changes the PR
   # branch). This job runs no npm code and is the only one with write access.
   bundle-handback:
@@ -87,18 +87,18 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with: { name: explorer-bundle, path: bundle }
-      - name: Push to ci/explorer-bundle/<pull request>
+      - name: Push to ci/explorer-bundle-pr-<pull request>
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          git init -q -b "ci/explorer-bundle/$PR" out && cd out
+          git init -q -b "ci/explorer-bundle-pr-$PR" out && cd out
           mkdir -p explorer/dist
           cp ../bundle/explorer/dist/explorer.js explorer/dist/explorer.js
           cp ../bundle/package-lock.json package-lock.json
           git add explorer/dist/explorer.js package-lock.json
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
             commit -qm "explorer.js and package-lock.json from npm for ${HEAD_SHA}"
-          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/ci/explorer-bundle/$PR"
-          echo "rebuilt bundle $(sha256sum explorer/dist/explorer.js | cut -c1-16) pushed to ci/explorer-bundle/$PR"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/ci/explorer-bundle-pr-$PR"
+          echo "rebuilt bundle $(sha256sum explorer/dist/explorer.js | cut -c1-16) pushed to ci/explorer-bundle-pr-$PR"
