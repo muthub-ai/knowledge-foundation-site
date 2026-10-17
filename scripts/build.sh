@@ -18,6 +18,17 @@ cd "$ROOT"
 npm install --no-audit --no-fund --loglevel=error
 npm run --silent build:explorer
 
+if [ -z "${KF_BUNDLE:-}" ] && [ -n "${KF_BRANCH:-}" ]; then
+  # Preview builds of an unmerged change: the knowledge repository's branch KF_BRANCH, with its graph built here as the
+  # site CI does (releases exist only for the knowledge repository's main). Production never sets KF_BRANCH.
+  rm -rf "$WORK/kf"
+  git clone --quiet --depth 1 -b "$KF_BRANCH" "https://github.com/${KF_REPO:-muthub-ai/knowledge-foundation}" "$WORK/kf"
+  python3 -m pip install --quiet -r "$WORK/kf/requirements.txt"
+  (cd "$WORK/kf" && PYTHONPATH=tools python3 -m kb graph --out dist)
+  KF_BUNDLE="$WORK/kf/wiki"
+  KF_GRAPH="$WORK/kf/dist/graph.json"
+  echo "knowledge branch $KF_BRANCH ($(git -C "$WORK/kf" rev-parse --short HEAD))"
+fi
 if [ -z "${KF_BUNDLE:-}" ]; then
   python3 -m kfsite fetch --out "$WORK/release"
   KF_BUNDLE="$WORK/release/wiki"
