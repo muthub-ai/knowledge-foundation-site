@@ -54,7 +54,9 @@ async function noHorizontalScroll(page: Page) {
 test("home page: title, themes and a same-site link to the graph", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveTitle(/Knowledge Foundation/);
+  await expect(page).not.toHaveTitle(/^Untitled/);
   await expect(page.locator("article")).toContainText("Themes");
+  await expect(page.locator("article")).not.toContainText(/^\s*title:/m);
   await expect(page.locator('article a[href$="/graph/"]').first()).toBeVisible();
   await noHorizontalScroll(page);
 });
@@ -62,6 +64,9 @@ test("home page: title, themes and a same-site link to the graph", async ({ page
 test("a note page shows the provenance callout, sources and JSON-LD", async ({ page }) => {
   const n = notes[0];
   await page.goto(n.url);
+  // Frontmatter is parsed, not printed: the note's own title, and no raw YAML in the article.
+  await expect(page).toHaveTitle(new RegExp("^" + n.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  await expect(page.locator("article")).not.toContainText(/^\s*(title|type|okf_version):/m);
   await expect(page.locator("article .callout").first()).toContainText(/Reviewed by Muthu|Not yet reviewed|Machine-confirmed/);
   await expect(page.locator("article")).toContainText("Sources");
   const ld = JSON.parse((await page.locator('script[data-kf="jsonld"]').textContent())!);

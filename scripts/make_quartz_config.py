@@ -19,7 +19,6 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 OFF = {
     "@quartz-community/graph",              # replaced by the Sigma explorer at /graph/
-    "@quartz-community/note-properties",    # replaced by the provenance callout kfsite writes
     "@quartz-community/latex", "@quartz-community/syntax-highlighting", "@quartz-community/og-image",
     "@quartz-community/cname", "@quartz-community/canvas-page", "@quartz-community/bases-page",
     "@quartz-community/encrypted-pages", "@quartz-community/comments", "@quartz-community/stacked-pages",
@@ -27,6 +26,10 @@ OFF = {
 }
 ON = {"@quartz-community/tag-list"}
 OPTIONS = {
+    # Quartz parses frontmatter in this plugin ("must not be removed"); only its properties panel is hidden, because
+    # the provenance callout kfsite writes does that job.
+    "@quartz-community/note-properties": {"hidePropertiesView": True, "includeAll": False, "includedProperties": [],
+                                          "excludedProperties": [], "delimiters": "---", "language": "yaml"},
     "@quartz-community/created-modified-date": {"defaultDateType": "modified", "priority": ["frontmatter", "filesystem"]},
     "@quartz-community/crawl-links": {"markdownLinkResolution": "absolute"},
     "@quartz-community/obsidian-flavored-markdown": {"enableInHtmlEmbed": False, "enableCheckbox": False},
