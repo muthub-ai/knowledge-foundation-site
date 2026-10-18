@@ -23,7 +23,7 @@ What a reader gets:
   explorer; below it "How a note gets here" (the six-step pipeline), "Three ways in" (curated reading paths), "Enter by
   theme", "Most connected" and a key. The explorer's inspector shows a note's provenance (review state, connections,
   source date, re-check date) with "Open the note" and "Read the essay"; its list view is a provenance table grouped by
-  theme. Quartz's own index moved to `/notes/`. Sigma map ([design notes](docs/explorer-design.md)): themes as
+  theme. Quartz's own index moved to `/notes/`. Under the counts, one quieter line counts the semantic layer apart (Semantica's entities, mentions and suggested relations; machine-extracted, not reviewed) with a "Show them" button that turns it on; extracted entities are grey, hidden by default, found by any of their names, and a note's panel lists machine-suggested relations in their own group with the quoted evidence. Sigma map ([design notes](docs/explorer-design.md)): themes as
   hubs on a ring, each theme's notes orbiting it in the theme's colour, shape by kind. It assembles itself on load;
   hovering fades the rest of the map and lights a note's neighbourhood; a theme in the legend focuses its cluster; the
   selected note glows and its panel opens with "Read on muthub.org" first for essays. Search suggests as you type ("/"),
