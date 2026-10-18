@@ -20,11 +20,8 @@ jobs:
       bundle_drift: ${{ steps.drift.outputs.drift }}
     steps:
       - uses: actions/checkout@v4
-      # The knowledge repository's main, or (only while that is still empty) its first pull-request branch.
-      - name: The knowledge repository
-        run: |
-          git clone --quiet --depth 1 https://github.com/muthub-ai/knowledge-foundation .kf
-          if [ ! -d .kf/wiki ]; then git -C .kf fetch --quiet --depth 1 origin claude/initial-build && git -C .kf checkout --quiet FETCH_HEAD; fi
+      - name: The knowledge repository (main)
+        run: git clone --quiet --depth 1 https://github.com/muthub-ai/knowledge-foundation .kf
       - uses: actions/setup-python@v5
         with: { python-version: "3.12", cache: pip }
       - uses: actions/setup-node@v4

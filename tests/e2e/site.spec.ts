@@ -77,7 +77,9 @@ test("a note page shows the provenance callout, sources and JSON-LD", async ({ p
   const graphLink = page.locator('article a[href^="/graph/?node="]').first();
   await expect(graphLink).toHaveAttribute("href", "/graph/?node=" + encodeURIComponent(n.id));
   await graphLink.click();
-  await expect(page.locator("#g-panel h2")).toHaveText(n.label);
+  // The explorer loads Sigma and graph.json first; on the slower phone profile that can take longer than 5 s.
+  await page.waitForURL(/\/graph\/?\?node=/);
+  await expect(page.locator("#g-panel h2")).toHaveText(n.label, { timeout: 15000 });
 });
 
 test("theme pages list their notes", async ({ page }) => {

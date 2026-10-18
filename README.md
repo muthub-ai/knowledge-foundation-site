@@ -88,8 +88,8 @@ environment, installs the Python packages and runs `scripts/build.sh`.
   (`ignoreCommand` in `vercel.json`) skips any production build from another branch, as a guard, and `ci/*` branches. Production builds read the latest knowledge release.
 - **Domain:** `wiki.muthub.org`, verified. muthub.org's DNS is hosted by Vercel, so no record is needed.
 - **Previews:** every push to a branch gets a private preview (Vercel Authentication). A preview reads the knowledge
-  repository's branch named in the Vercel preview variable `KF_BRANCH` (set for this repository's `claude/initial-build`
-  branch while the two first pull requests are open; remove it after they merge) and otherwise the latest release.
+  repository's branch named in the Vercel preview variable `KF_BRANCH` (set only while a site branch and a knowledge branch
+  are tested together, for that site branch only) and otherwise the latest release.
   When a preview build fails, its page shows the build log instead, so Vercel's own check stays green: the **build
   and test** check in GitHub is the one that gates merging.
 - **Still to do once:** create a deploy hook for `main` (Project → Settings → Git → Deploy Hooks) and save its URL as
