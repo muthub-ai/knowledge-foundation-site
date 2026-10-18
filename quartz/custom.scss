@@ -18,3 +18,10 @@ article {
 html {
   width: 100%;
 }
+
+// The note list drawer on phones slides off to the left with visibility: hidden, but Quartz marks open folders
+// visibility: visible, which overrides it: the ends of their note titles peeked in at the left edge of every page.
+.explorer.collapsed .explorer-content,
+.explorer.collapsed .explorer-content * {
+  visibility: hidden !important;
+}
