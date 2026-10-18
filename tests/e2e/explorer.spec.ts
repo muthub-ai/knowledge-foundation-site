@@ -210,3 +210,31 @@ test("the extracted layer: off by default, one switch shows entities and their e
   await page.getByRole("button", { name: "Reset" }).click();
   await expect(page.locator("#g-status")).toHaveText(new RegExp(`^${shownCount} nodes`));
 });
+
+test("the semantic layer line counts it apart and Show them turns it on; suggested relations carry their evidence", async ({ page }) => {
+  await ready(page);
+  const line = page.locator("[data-semantic]");
+  if (!entities.length) { await expect(line).toBeHidden(); return; }
+  const mentions = graph.edges.filter((e: any) => e.origin === "extracted" && e.type === "mentions").length;
+  const typed = graph.edges.filter((e: any) => e.origin === "extracted" && e.type !== "mentions");
+  await expect(line).toContainText(`${entities.length} entities`);
+  await expect(line).toContainText(`${mentions} mentions`);
+  if (typed.length) await expect(line).toContainText(`${typed.length} suggested relation`);
+  await expect(page.locator('[data-stat="notes"]')).toHaveText(String(notes.length)); // the curated counts do not move
+  await line.getByRole("button", { name: "Show them" }).click();
+  await expect(page.locator("#g-status")).toHaveText(new RegExp(`^${shownCount + entities.length} nodes`));
+  if (!typed.length) return;
+  // A note with a suggested relation lists it in its own group, labelled as machine-made, with the quote as a tooltip.
+  await page.locator("#g-search").fill(graph.nodes.find((n: any) => n.id === typed[0].source).label);
+  await page.locator("#g-search").press("Enter");
+  await expect(page.locator("#g-panel")).toContainText("Suggested relations (machine, not reviewed)");
+  await expect(page.locator(`#g-panel a[title*="${typed[0].evidence.slice(0, 20)}"]`).first()).toBeVisible();
+});
+
+test("an entity is found by any of its names", async ({ page }) => {
+  const aliased = entities.find((n: any) => (n.aliases || []).length);
+  test.skip(!aliased, "no aliased entity in this graph.json");
+  await ready(page);
+  await page.locator("#g-search").fill(aliased.aliases[0]);
+  await expect(page.locator("#g-suggest li").first()).toContainText(aliased.label);
+});

@@ -55,6 +55,10 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 .stats { margin: 6px 0 0; display: flex; gap: 32px; flex-wrap: wrap; }
 .stats dt { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .stats dd { margin: 0; font-family: var(--serif); font-size: 1.75rem; color: var(--ink); }
+.semantic-line { margin: 14px 0 0; font-size: .86rem; color: var(--body); }
+.semantic-line .what { color: var(--ink); }
+.linkish { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.linkish:hover { color: var(--ink); }
 
 /* The frame: the explorer as an instrument inside the page */
 .explorer.frame { flex: 1 1 600px; min-width: 0; position: relative; height: 680px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden;
@@ -262,6 +266,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 @media (pointer: coarse) {
   .tools > button, .filters summary, .zoom button, .legend button { min-height: 40px; }
   .theme-toggle { min-height: 44px; }
+  .linkish { padding: 10px 0; }
   .filters label { padding: 8px 0; }
   .g-panel .close { width: 44px; height: 44px; }
   .g-panel li a { padding: 9px 6px; }

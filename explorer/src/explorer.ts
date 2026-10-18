@@ -18,7 +18,7 @@ import { extremityArrow, layerFill, layerPlain, pathCurved, pathLine, sdfCircle,
 type GNode = {
   id: string; type: string; label: string; url: string; summary: string; trust: string; status: string;
   updated: string; tags: string[]; degree: number; community: number; x: number; y: number; canonical?: string;
-  verified?: string; stale_after?: string; source_date?: string; entityKind?: string;
+  verified?: string; stale_after?: string; source_date?: string; entityKind?: string; aliases?: string[];
 };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 // "2026-03-07" -> "Mar 7, 2026"; anything else is passed through.
@@ -28,7 +28,7 @@ function humanDay(d?: string) {
 }
 // Where a reader should land: the essay on muthub.org when the note summarises one, else the wiki page.
 const primaryUrl = (n: GNode) => n.canonical || n.url;
-type GEdge = { source: string; target: string; type: string; origin: string; weight?: number };
+type GEdge = { source: string; target: string; type: string; origin: string; weight?: number; evidence?: string };
 
 // Theme colours: one hue per theme, tuned for each background (light: deep and inky; dark: luminous).
 const THEME_LIGHT = ["#0b6b7a", "#3d4fc4", "#b5650f", "#b2306b", "#2d7a4c", "#6a4c9c", "#7a6400"];
@@ -450,24 +450,26 @@ function openPanel(id: string) {
   const colour = graph.getNodeAttribute(id, "color");
   // One list per kind of connection; a note linked both ways appears once with ⇄. Theme membership is in the kicker.
   const GROUP: Record<string, string> = { link: "Linked notes", frontmatter: "Linked notes", source: n.type === "Source" ? "Notes drawn from it" : "Sources", folder: n.type === "Theme" ? "Notes in this theme" : "", extracted: n.type === "Entity" ? "Mentioned in" : "Mentions (machine-extracted)" };
+  const SUGGESTED = "Suggested relations (machine, not reviewed)";
   const rows: Record<string, Map<string, { out: boolean; inn: boolean; rel: Set<string> }>> = {};
   const add = (a: any, other: string, out: boolean, e: string) => {
-    const g = GROUP[a.origin] ?? "Other connections";
+    const g = a.origin === "extracted" && a.rel !== "mentions" ? SUGGESTED : GROUP[a.origin] ?? "Other connections";
     if (!g || renderer.getEdgeState(e).isHidden) return;
     const m = (rows[g] ||= new Map());
     const r = m.get(other) || { out: false, inn: false, rel: new Set<string>() };
     out ? (r.out = true) : (r.inn = true);
-    if (relLabel(a.rel)) r.rel.add(relLabel(a.rel));
+    if (relLabel(a.rel)) r.rel.add(g === SUGGESTED ? (out ? relLabel(a.rel) : `${relLabel(a.rel)} (from it)`) : relLabel(a.rel));
+    if (a.evidence && g === SUGGESTED) (r as any).ev = a.evidence;
     m.set(other, r);
   };
   graph.forEachOutEdge(id, (e, a: any, _s, t) => add(a, t, true, e));
   graph.forEachInEdge(id, (e, a: any, s) => add(a, s, false, e));
-  const ORDER = ["Notes in this theme", "Linked notes", "Sources", "Notes drawn from it", "Mentions", "Other connections"];
+  const ORDER = ["Notes in this theme", "Linked notes", SUGGESTED, "Sources", "Notes drawn from it", "Mentioned in", "Mentions (machine-extracted)", "Other connections"];
   const glyph = (r: { out: boolean; inn: boolean }) => (r.out && r.inn ? "⇄" : r.out ? "→" : "←");
   const glyphTitle = (r: { out: boolean; inn: boolean }) => (r.out && r.inn ? "Linked both ways" : r.out ? "This note links to it" : "It links to this note");
   const lists = ORDER.filter((g) => rows[g]?.size).map((g) => {
     const items = [...rows[g]].sort((a, b) => byId[a[0]].label.localeCompare(byId[b[0]].label)).map(([other, r]) =>
-      `<li><a href="#" data-id="${esc(other)}"><span class="dot" data-bg="${esc(graph.getNodeAttribute(other, "color"))}"></span><span class="t">${esc(byId[other].label)}</span>${r.rel.size ? `<span class="rel muted">${esc([...r.rel].join(", "))}</span>` : ""}` +
+      `<li><a href="#" data-id="${esc(other)}"${(r as any).ev ? ` title="${esc(`“${(r as any).ev}”`)}"` : ""}><span class="dot" data-bg="${esc(graph.getNodeAttribute(other, "color"))}"></span><span class="t">${esc(byId[other].label)}</span>${r.rel.size ? `<span class="rel muted">${esc([...r.rel].join(", "))}</span>` : ""}` +
       (g === "Linked notes" ? `<span class="dir" title="${glyphTitle(r)}" aria-label="${glyphTitle(r)}">${glyph(r)}</span>` : "") + `</a></li>`);
     return `<h3>${esc(g)} <span class="muted">${items.length}</span></h3><ul>${items.join("")}</ul>`;
   });
@@ -534,8 +536,10 @@ function matches(q: string): GNode[] {
   q = q.trim().toLowerCase();
   if (!q) return [];
   const all = Object.values(byId);
-  const rank = (n: GNode) => (n.label.toLowerCase() === q ? 0 : n.label.toLowerCase().startsWith(q) ? 1 : 2) + (n.type === "Source" ? 3 : 0);
-  return all.filter((n) => n.label.toLowerCase().includes(q)).sort((a, b) => rank(a) - rank(b) || a.label.localeCompare(b.label));
+  const exact = (n: GNode) => n.label.toLowerCase() === q || (n.aliases || []).some((a) => a.toLowerCase() === q);
+  const rank = (n: GNode) => (exact(n) ? 0 : n.label.toLowerCase().startsWith(q) ? 1 : 2) + (n.type === "Source" ? 3 : 0);
+  const hit = (n: GNode) => n.label.toLowerCase().includes(q) || (n.aliases || []).some((a) => a.toLowerCase().includes(q));
+  return all.filter(hit).sort((a, b) => rank(a) - rank(b) || a.label.localeCompare(b.label));
 }
 function findByLabel(q: string): string | null { return matches(q)[0]?.id ?? null; }
 let pick = -1;
@@ -655,6 +659,27 @@ function fillPage(g: { nodes: GNode[]; edges: GEdge[] }) {
   const words = (n: number) => (n < 20 ? WORDS[n] : n < 100 ? TENS[Math.floor(n / 10)] + (n % 10 ? "-" + WORDS[n % 10].toLowerCase() : "") : String(n));
   put("notes-words", words(notes.length));
 
+  // The semantic layer, counted apart from the curated graph above it, with a way in (it is hidden by default).
+  const ents = g.nodes.filter((n) => n.type === "Entity").length;
+  const mentions = g.edges.filter((e) => e.origin === "extracted" && e.type === "mentions").length;
+  const suggested = g.edges.filter((e) => e.origin === "extracted" && e.type !== "mentions").length;
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  const parts = [plural(ents, "entity").replace(/entitys$/, "entities"), plural(mentions, "mention")].concat(suggested ? [plural(suggested, "suggested relation")] : []);
+  const and = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : xs[0]);
+  const line = document.querySelector<HTMLElement>("[data-semantic]");
+  if (line && ents) {
+    line.querySelector<HTMLElement>(".what")!.textContent = `+ ${and(parts)} found by Semantica`;
+    line.hidden = false;
+    line.querySelector("button")?.addEventListener("click", () => {
+      Object.keys(TYPE_ORIGIN).filter((t) => t === "Entity").forEach((t) => { offTypes.delete(t); offOrigins.delete(TYPE_ORIGIN[t]); });
+      syncFilterBoxes(); applyFilters(); applyFocus();
+      $("explorer").scrollIntoView({ behavior: REDUCE ? "auto" : "smooth", block: "center" });
+      announce(`Showing ${and(parts)} found by Semantica`);
+    });
+  }
+  const step = document.querySelector<HTMLElement>('[data-stat="semantic-step"]');
+  if (step && ents) step.textContent = ` In this release: ${and(parts)}.`;
+
   const cards = $("theme-cards");
   if (cards) {
     cards.innerHTML = themes.map((t) => {
@@ -751,7 +776,7 @@ fetch("/graph.json")
     g.nodes.forEach((n) => {
       // Semantica's entities arrive typed by what they are (Concept, Tool, Organization), which would mix them with
       // notes of the same kind: the explorer treats them as one kind, Entity, and keeps what they are as entityKind.
-      if (n.id.startsWith("ext:")) { n.entityKind = n.type; n.type = "Entity"; n.summary = `${n.entityKind}. Found by Semantica in ${n.degree || 0} note${n.degree === 1 ? "" : "s"}; machine-extracted, not reviewed.`; }
+      if (n.id.startsWith("ext:")) { n.entityKind = n.type; n.type = "Entity"; n.summary = `${n.entityKind}${n.aliases?.length ? `, also called ${n.aliases.slice(0, 4).join(", ")}` : ""}. Found by Semantica in ${n.degree || 0} note${n.degree === 1 ? "" : "s"}; machine-extracted, not reviewed.`; }
       n.url = safeUrl(n.url) ?? "#"; n.canonical = safeUrl(n.canonical); byId[n.id] = n;
     });
     const edges = g.edges.filter((e) => e.source !== e.target && byId[e.source] && byId[e.target]);
@@ -775,7 +800,7 @@ fetch("/graph.json")
         labelSide: n.type === "Theme" ? "below" : p.side,
       });
     });
-    edges.forEach((e) => graph.addEdge(e.source, e.target, { rel: e.type, origin: e.origin, size: e.origin === "folder" ? 0.7 : e.origin === "frontmatter" ? 1.6 : 1.1 }));
+    edges.forEach((e) => graph.addEdge(e.source, e.target, { rel: e.type, origin: e.origin, evidence: e.origin === "extracted" && e.type !== "mentions" ? e.evidence : undefined, size: e.origin === "folder" ? 0.7 : e.origin === "frontmatter" ? 1.6 : 1.1 }));
     buildLegend();
     paint();
 

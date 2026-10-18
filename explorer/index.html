@@ -54,6 +54,7 @@
         <div><dt>Connections</dt><dd data-stat="connections">133</dd></div>
         <div><dt>Themes</dt><dd data-stat="themes">5</dd></div>
       </dl>
+      <p class="semantic-line" data-semantic hidden><span class="what"></span> <span class="muted">· machine-extracted, not reviewed ·</span> <button type="button" class="linkish">Show them</button></p>
     </div>
 
     <section class="explorer frame" id="explorer" aria-label="Graph explorer">
@@ -98,7 +99,7 @@
         <li><p class="step-n">02 · Librarian</p><p class="step-t">LLM-Wiki-V2, CROW mode</p><p class="step-d">A local classifier decides where a note belongs; Claude writes it. Cost per note stays flat as the wiki grows.</p></li>
         <li><p class="step-n">03 · Format</p><p class="step-t">Open Knowledge Format v0.2</p><p class="step-d">Markdown with provenance in the frontmatter, kept in Git. Any tool can read it; nothing is locked in.</p></li>
         <li><p class="step-n">04 · Review</p><p class="step-t">Checks, then a human</p><p class="step-d">Schema, dates, links and a confidential-terms scan on every change. Only Muthu's approval marks a note reviewed.</p></li>
-        <li><p class="step-n">05 · Graph</p><p class="step-t">NetworkX, with Semantica</p><p class="step-d">A deterministic graph of notes, sources and relations; Semantica adds extracted entities, kept apart and labelled.</p></li>
+        <li><p class="step-n">05 · Graph</p><p class="step-t">NetworkX, with Semantica</p><p class="step-d">A deterministic graph of notes, sources and relations; Semantica adds extracted entities and suggested relations, kept apart and labelled.<span data-stat="semantic-step"></span></p></li>
         <li><p class="step-n">06 · Publish</p><p class="step-t">Quartz 5 and Sigma.js 4</p><p class="step-d">Each merge cuts a release; this site and graph rebuild from it. Markdown twins and llms.txt for machines.</p></li>
       </ol>
     </div>
