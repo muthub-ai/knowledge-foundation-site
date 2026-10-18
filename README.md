@@ -1,100 +1,96 @@
 # Knowledge Foundation website
 
-**wiki.muthub.org**: [Quartz 5](https://quartz.jzhao.xyz) over the Knowledge Foundation bundle, with a
-[Sigma.js 4](https://www.sigmajs.org) graph explorer as the home page (`/`, also at `/graph/`). It reads one thing, a release of
-[`muthub-ai/knowledge-foundation`](https://github.com/muthub-ai/knowledge-foundation) (`bundle.tgz` and `graph.json`),
-and never imports code from that repository (ADR 004 and 014 there).
+**The public face of the Knowledge Foundation: a knowledge graph you can walk, with every note's provenance in view.**
 
+[![build and test](https://github.com/muthub-ai/knowledge-foundation-site/actions/workflows/ci.yml/badge.svg)](https://github.com/muthub-ai/knowledge-foundation-site/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Quartz 5](https://img.shields.io/badge/Quartz-5-4b5563)](https://quartz.jzhao.xyz)
+[![Sigma.js 4](https://img.shields.io/badge/Sigma.js-4-4b5563)](https://www.sigmajs.org)
+
+**Live:** [wiki.muthub.org](https://wiki.muthub.org) · **Content and rules:** [knowledge-foundation](https://github.com/muthub-ai/knowledge-foundation) · **Replicate it:** [docs/plan](docs/plan/README.md) · **Decisions:** [docs/decisions](docs/decisions/README.md)
+
+The home page is a [Sigma.js 4](https://www.sigmajs.org) (WebGL) explorer over the knowledge graph; the notes are
+rendered by [Quartz 5](https://quartz.jzhao.xyz). The site reads exactly one thing, a release of the knowledge
+repository (`bundle.tgz` and `graph.json`), and never imports its code.
+
+## What a reader gets
+
+| Surface | What it shows |
+|---|---|
+| **Home: the graph** | Themes as hubs on a ring, notes orbiting them, shape by kind. Hover lights a neighbourhood; click opens an inspector with the note's **review state, connections, source date and re-check date**; a list view is the same data as a provenance table. Search finds notes and entities by any of their names. Dark by default, light on request, `prefers-reduced-motion` respected |
+| **The semantic layer** | Semantica's entities and machine-suggested relations, counted apart from the curated graph ("+ N entities … found by Semantica · machine-extracted, not reviewed · Show them"), grey, hidden until asked for, with the quoted evidence for every suggestion |
+| **Note pages** | A provenance callout (reviewed or not, last verified, drafted by, re-check date, number of sources), the note, its dated sources, typed relations and See also, backlinks, popovers |
+| **For machines** | A Markdown twin of every note (the OKF file itself), `llms.txt`, sitemap, RSS, JSON-LD on every note, `graph.json` with CORS |
+
+## Architecture
+
+```mermaid
+flowchart LR
+  REL[("knowledge release<br/>bundle.tgz · graph.json")] --> STAGE
+  subgraph build["scripts/build.sh"]
+    STAGE["kfsite stage<br/>OKF → Quartz content:<br/>provenance callout, dated sources,<br/>typed relations, site links"]
+    QZ["quartz build<br/>Quartz 5 at quartz.ref"]
+    POST["kfsite post<br/>JSON-LD · Markdown twins · llms.txt<br/>explorer + graph.json · dark default"]
+    EXP["explorer/dist/explorer.js<br/>Sigma.js 4 + graphology (esbuild)"]
+    STAGE --> QZ --> POST
+    EXP --> POST
+  end
+  POST --> PUB["public/"] --> V["Vercel<br/>CSP · clean URLs"] --> W(["wiki.muthub.org"])
 ```
-release (wiki/, graph.json)
-  └─ kfsite stage   OKF notes → Quartz content: provenance callout, sources with dates, site-path links, home and theme pages
-      └─ quartz build   Quartz 5 at the commit in quartz.ref, configured by quartz.config.yaml
-          └─ kfsite post   JSON-LD, Markdown twins, llms.txt, robots.txt, the Sigma explorer and graph.json
-              └─ public/   what Vercel serves
-```
 
-What a reader gets:
-- **Note pages** (Quartz). Each opens with a callout: reviewed by Muthu or not yet, last verified, drafted by whom,
-  re-check date, number of sources. A note that summarises one of Muthu's essays leads the callout with "Read the full
-  essay on muthub.org", because the essay is the canonical page. Then the note, its sources with publication dates,
-  See also, and Quartz's backlinks, table of contents, popovers and tag list.
-- **Theme folders, search, the folder explorer, dark mode and RSS**, from Quartz.
-- **The home page (`/`)**: the graph, dark by default with a light toggle. Editorial copy and counts beside a framed
-  explorer; below it "How a note gets here" (the six-step pipeline), "Three ways in" (curated reading paths), "Enter by
-  theme", "Most connected" and a key. The explorer's inspector shows a note's provenance (review state, connections,
-  source date, re-check date) with "Open the note" and "Read the essay"; its list view is a provenance table grouped by
-  theme. Quartz's own index moved to `/notes/`. Under the counts, one quieter line counts the semantic layer apart (Semantica's entities, mentions and suggested relations; machine-extracted, not reviewed) with a "Show them" button that turns it on; extracted entities are grey, hidden by default, found by any of their names, and a note's panel lists machine-suggested relations in their own group with the quoted evidence. Sigma map ([design notes](docs/explorer-design.md)): themes as
-  hubs on a ring, each theme's notes orbiting it in the theme's colour, shape by kind. It assembles itself on load;
-  hovering fades the rest of the map and lights a note's neighbourhood; a theme in the legend focuses its cluster; the
-  selected note glows and its panel opens with "Read on muthub.org" first for essays. Search suggests as you type ("/"),
-  filters by node type and connection origin, a list view, zoom controls, and `?node=<id>` links from every note (those
-  open at once, without the entrance). On phones the panel is a bottom sheet. It shares the dark-mode choice with the
-  Quartz pages, and `prefers-reduced-motion` turns the animation off. Its CSP allows no inline scripts or styles.
-- **For machines**: a Markdown twin of every note (`/<theme>/<note>.md`, the OKF file itself), `llms.txt`, the sitemap,
-  and JSON-LD on every note.
+| Concern | How it is handled |
+|---|---|
+| Coupling | Release assets only; a schema (`graph.schema.json` in the knowledge repo) is the contract |
+| Security | Strict Content-Security-Policy on the explorer: no inline scripts or styles; colours set through data attributes |
+| Reproducibility | Quartz pinned by commit (`quartz.ref`); npm locked; the explorer bundle committed and checked for drift in CI |
+| Honesty in the UI | Machine-found structure is labelled, grey, hidden by default and never counted with authored connections |
+| Accessibility | Keyboard search ("/"), Escape to leave focus, live-region announcements, reduced motion, 44 px touch targets |
 
-Source copies under `raw/` are not published. Sources link to the original instead: the essay on muthub.org, or the
-third-party page.
-
-## Build
+## Quickstart
 
 Needs Python 3.12 and Node 22.
 
 ```bash
 pip install -r requirements.txt
 KF_BUNDLE=../knowledge-foundation/wiki KF_GRAPH=../knowledge-foundation/dist/graph.json bash scripts/build.sh
-python3 tests/serve.py public 8765          # http://127.0.0.1:8765, with clean URLs as on Vercel
+python3 tests/serve.py public 8765          # http://127.0.0.1:8765, clean URLs and vercel.json headers, as on Vercel
 ```
 
-`cd ../knowledge-foundation && make graph` first writes `dist/graph.json`. Without `KF_BUNDLE`, the build downloads
-the latest release (or the tag in `KF_RELEASE`), which is what Vercel does. The first build clones Quartz into
-`.build/` and runs `npm ci` there, which takes a minute or two.
+Without `KF_BUNDLE` the build downloads the latest knowledge release (or the tag in `KF_RELEASE`), which is what Vercel does.
 
-**Upgrading Quartz:**
-1. Put the new commit in `quartz.ref`.
-2. Run `python scripts/make_quartz_config.py .build/quartz` to regenerate the config from Quartz's new default.
-3. Build and test.
-
-**The explorer:** `explorer/src/explorer.ts` is bundled with Sigma.js and graphology by `npm run build:explorer` into
-`explorer/dist/explorer.js`. The build script rebuilds it from npm every time. The committed copy is for machines
-without npm. The npm packages are locked in `package-lock.json` (`build.sh` runs `npm ci`). CI fails when the committed
-bundle or lockfile differs from what it built; on a pull request its `bundle-handback` job then pushes both to the
-scratch branch `ci/explorer-bundle-pr-<pull request number>`. Take them with
-`git fetch origin ci/explorer-bundle-pr-<n> && git checkout FETCH_HEAD -- explorer/dist/explorer.js package-lock.json` and
-commit. Vercel ignores `ci/*` branches.
-
-## Test
+## Tests
 
 ```bash
 pip install -r requirements-dev.txt
-python -m unittest discover -s tests -v     # stage, post, release download (fixture bundle and the real one)
+python -m unittest discover -s tests -v     # stage, post, release download
 npm install && npx playwright install chromium
-KF_QUARTZ=1 npx playwright test             # Quartz pages and the graph explorer, desktop and mobile
+KF_QUARTZ=1 npx playwright test             # Quartz pages and the explorer, desktop and Pixel 7
 ```
 
-`tests/serve.py` serves `public/` the way Vercel does (clean URLs, and the response headers from `vercel.json`, so a
-Content-Security-Policy violation on `/graph/` fails the browser tests as a console error).
+`tests/serve.py` sends the response headers from `vercel.json`, so a CSP violation fails the browser tests as a
+console error. Without npm, `python tests/build_preview.py --bundle … --graph …` builds with a Quartz stand-in and the
+explorer tests still run. CI runs the real Quartz build, unit and browser tests, the confidential-terms scan of the
+built site, and the explorer-bundle drift check on every pull request.
 
-Without npm, `python tests/build_preview.py --bundle … --graph …` builds `public/` with a stand-in for Quartz
-(`tests/fake_quartz.py`). In that case, run `npx playwright test` without `KF_QUARTZ`: the explorer tests run and the
-Quartz page tests skip.
+## Repository map
 
-CI (`.github/workflows/ci.yml`) runs everything on every pull request with the real Quartz build. Add the
-`CONFIDENTIAL_TERMS` secret here too, so the built site is scanned for confidential terms.
+| Path | What it is |
+|---|---|
+| `kfsite/` | `stage` (bundle → Quartz content) and `post` (finish `public/`) |
+| `explorer/` | The home page: `index.html`, `explorer.css`, `theme.js`, `src/explorer.ts`, committed `dist/explorer.js` |
+| `quartz.ref`, `quartz.config.yaml`, `quartz/` | Pinned Quartz commit, generated config, custom styles |
+| `scripts/` | `build.sh`, `vercel_build.sh`, `build_explorer.mjs`, `fetch_release.py`, `make_quartz_config.py` |
+| `tests/` | Unit tests, Playwright specs, a Vercel-like server, a Quartz stand-in |
+| `vercel.json` | Build command, ignored-build rule, security headers and CSP |
+| `docs/` | [Explorer design notes](docs/explorer-design.md), [decisions](docs/decisions/README.md), [replication plan](docs/plan/README.md) |
 
 ## Deploy
 
-The Vercel project `knowledge-foundation-site` exists (created October 17, 2026) and is linked to this repository.
-`vercel.json` runs everything through `scripts/vercel_build.sh`, which sets up Python 3.11.4 or newer in a virtual
-environment, installs the Python packages and runs `scripts/build.sh`.
+`main` is production: a merge deploys wiki.muthub.org, and each knowledge release triggers a rebuild through a deploy
+hook. Branches get private previews; a failed preview shows its build log as the page, so the GitHub check
+**build and test** is the merge gate. Details, rollback and failure modes: [docs/plan/05-operations.md](docs/plan/05-operations.md).
 
-- **Production** is `main` only. A merge to `main` deploys wiki.muthub.org. The ignored build step
-  (`ignoreCommand` in `vercel.json`) skips any production build from another branch, as a guard, and `ci/*` branches. Production builds read the latest knowledge release.
-- **Domain:** `wiki.muthub.org`, verified. muthub.org's DNS is hosted by Vercel, so no record is needed.
-- **Previews:** every push to a branch gets a private preview (Vercel Authentication). A preview reads the knowledge
-  repository's branch named in the Vercel preview variable `KF_BRANCH` (set only while a site branch and a knowledge branch
-  are tested together, for that site branch only) and otherwise the latest release.
-  When a preview build fails, its page shows the build log instead, so Vercel's own check stays green: the **build
-  and test** check in GitHub is the one that gates merging.
-- **Still to do once:** create a deploy hook for `main` (Project → Settings → Git → Deploy Hooks) and save its URL as
-  the `VERCEL_DEPLOY_HOOK` secret in the knowledge repository, so every knowledge release rebuilds the site.
+## Licence
+
+Code: MIT ([LICENSE](LICENSE)). The notes rendered here are CC BY 4.0, from the knowledge repository.
+Views are the author's own and do not represent his employer.
