@@ -340,36 +340,38 @@ function labelReach(id: string): { left: number; right: number } {
 /**
  * Frame some nodes, leaving room for the chrome: on wide screens the legend (left) and the panel (right) take space,
  * so the camera shifts to centre the nodes between them; on narrow screens the panel is a bottom sheet, so the nodes
- * go in the upper part. With `centre`, that node is kept at the centre and the zoom still fits the others. Labels
- * count too: the frame widens (zooms out) until the names at its edges fit on screen, not just their dots.
+ * go in the upper part. With `centre`, the zoom fits that node's neighbourhood around it. Names count, not just dots:
+ * the frame widens until every node in `named` (default: all of them) fits on screen with its label.
  */
-function fitNodes(ids: string[], opts: { maxRatio?: number; besidePanel?: boolean; centre?: string } = {}) {
+function fitNodes(ids: string[], opts: { maxRatio?: number; besidePanel?: boolean; centre?: string; named?: string[] } = {}) {
   const pts = ids.map((id) => renderer.getNodeDisplayData(id)).filter(Boolean);
   if (!pts.length) return;
   const xs = pts.map((p: any) => p.x), ys = pts.map((p: any) => p.y);
   const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
   const c = opts.centre ? renderer.getNodeDisplayData(opts.centre) : null;
-  let cx = c ? c.x : (x0 + x1) / 2;
   const cy = c ? c.y : (y0 + y1) / 2;
-  const span = c ? 2 * Math.max(cx - x0, x1 - cx, cy - y0, y1 - cy) : Math.max(x1 - x0, y1 - y0);
-  let ratio = Math.min(opts.maxRatio ?? 1, Math.max(0.25, span * 1.25));
-  // Screen pixels to camera units: sigma fits the graph to the smaller side minus the stage padding (measured: on a
-  // 412 x 774 phone, 0.1 camera units move a node 31.6 px at ratio 1).
+  const span = c ? 2 * Math.max(c.x - x0, x1 - c.x, cy - y0, y1 - cy) : Math.max(x1 - x0, y1 - y0);
   const w = container.clientWidth || 1, h = container.clientHeight || 1;
+  // Screen pixels to camera units: sigma fits the graph to the smaller side minus the stage padding (measured: on a
+  // 412 x 774 phone, 0.1 camera units move a node 31.6 px at ratio 1). k = camera units per pixel at a ratio.
   const D = Math.max(1, Math.min(w, h) - 2 * 48);
   const wide = !NARROW();
   const panelPx = wide && opts.besidePanel && !panel.hidden ? panel.offsetWidth + 28 : 0;
   const legendPx = wide && !legend.hidden && legend.offsetParent ? legend.offsetWidth + 28 : 0;
-  // Names stick out past the outermost dots: zoom out until they fit in the width left between the chrome.
-  let padL = 0, padR = 0;
-  // With `centre` (a selected note), only its own name counts, so a note with long-named neighbours is not zoomed out.
-  for (const id of c ? [opts.centre!] : ids) { const r = labelReach(id); padL = Math.max(padL, r.left); padR = Math.max(padR, r.right); }
-  const room = Math.max(120, w - panelPx - legendPx - 32 - padL - padR);
-  const width = c ? 2 * Math.max(cx - x0, x1 - cx) : x1 - x0;
-  ratio = Math.min(1.2, Math.max(ratio, (width * D) / room));
-  const toCam = (px: number) => (px * ratio) / D;
-  // Centre the whole picture, names included (for `centre`, only that node's own name moves the frame).
-  cx += toCam(padR - padL) / 2;
+  const room = Math.max(120, w - panelPx - legendPx - 32);
+  // Names stick out past their dots. Every named node (the ones whose labels show in this view) must fit with its name
+  // in the width left between the chrome: zoom out step by step until they do, then centre that box.
+  const named = (opts.named ?? ids).map((id) => ({ d: renderer.getNodeDisplayData(id), r: labelReach(id) })).filter((n) => n.d);
+  const box = (k: number) => [Math.min(x0, ...named.map((n) => n.d!.x - n.r.left * k)), Math.max(x1, ...named.map((n) => n.d!.x + n.r.right * k))];
+  let ratio = Math.min(opts.maxRatio ?? 1, Math.max(0.25, span * 1.25));
+  for (let i = 0; i < 24 && ratio < 1.2; i++) {
+    const [l, r] = box(ratio / D);
+    if (r - l <= (room * ratio) / D) break;
+    ratio = Math.min(1.2, ratio * 1.12);
+  }
+  const k = ratio / D, toCam = (px: number) => px * k;
+  const [bl, br] = box(k);
+  const cx = (bl + br) / 2;
   let dx = 0, dy = 0;
   if (wide) dx += toCam(panelPx / 2) - toCam(legendPx / 2);
   else if (opts.besidePanel && !panel.hidden) dy -= toCam(panel.offsetHeight / 2); // a lower camera lifts the nodes above the bottom sheet
@@ -452,7 +454,7 @@ function focusNode(id: string, opts: { moveFocus?: boolean } = {}) {
   const near = [...(activeSet() || [id])];
   const t = themeOf[id];
   const frame = near.length < 4 && t ? [...near, t, ...graph.filterNodes((n) => themeOf[n] === t && !renderer.getNodeState(n).isHidden)] : near;
-  fitNodes(frame, { maxRatio: near.length < 4 ? 0.6 : 0.85, besidePanel: true, centre: id });
+  fitNodes(frame, { maxRatio: near.length < 4 ? 0.6 : 0.85, besidePanel: true, centre: id, named: near });
   if (opts.moveFocus) panel.querySelector<HTMLElement>("h2")?.focus({ preventScroll: true });
 }
 
