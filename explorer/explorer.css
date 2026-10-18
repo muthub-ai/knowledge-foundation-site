@@ -212,7 +212,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 .key-ring { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent); }
 .key-shapes { display: inline-flex; gap: 2px; flex: none; } .key-shapes .shape { --c: var(--accent); margin: 0 2px; }
 .key-line, .key-dash { width: 22px; height: 0; border-top: 1px solid var(--strong); flex: none; }
-.key-dash { border-top-style: dashed; }
+.key-dash { border-top-color: var(--muted); opacity: .6; }
 .legend-aside p { margin: 16px 0 0; }
 
 /* Footer */
