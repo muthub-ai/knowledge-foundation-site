@@ -38,7 +38,7 @@ class SameSiteLinks(unittest.TestCase):
              'Show in graph<svg aria-hidden="true" class="external-icon" viewBox="0 0 1 1"><path d="M0"></path></svg></a> '
              '<a href="https://example.com/" class="external">out</a></p>')
         out = same_site_links(a, "https://wiki.muthub.org")
-        self.assertIn('<a class="internal" href="/graph/?node=a%2Fb.md&amp;x=1">Show in graph</a>', out)
+        self.assertIn('<a class="internal" href="/graph/?node=a%2Fb.md&amp;x=1" data-router-ignore>Show in graph</a>', out)
         self.assertIn('<a href="https://example.com/" class="external">out</a>', out)
 
 

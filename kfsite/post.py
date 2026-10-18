@@ -31,7 +31,11 @@ def page_file(public: Path, slug: str) -> Path:
 
 
 def same_site_links(text: str, site: str) -> str:
-    """<a href="https://wiki.muthub.org/graph/?node=..." class="external ..."> -> a plain same-site link."""
+    """<a href="https://wiki.muthub.org/graph/?node=..." class="external ..."> -> a plain same-site link.
+
+    These links lead to files Quartz did not render (the graph explorer, Markdown twins, llms.txt), so they carry
+    data-router-ignore: Quartz's single-page router would otherwise fetch them and swap the page body in place, which
+    never starts the explorer's script."""
     pattern = re.compile(r'<a\b([^>]*?)href="' + re.escape(site) + r'(/[^"]*)"([^>]*)>(.*?)</a>', re.S)
 
     def sub(m: re.Match[str]) -> str:
@@ -41,7 +45,7 @@ def same_site_links(text: str, site: str) -> str:
         attrs = re.sub(r'\s*\b(target|rel|class)="[^"]*"', "", attrs).strip()
         inner = re.sub(r'<svg[^>]*class="external-icon"[\s\S]*?</svg>', "", m.group(4))
         extra = f" {attrs}" if attrs else ""
-        return f'<a{extra} class="{" ".join(dict.fromkeys(kept))}" href="{m.group(2)}">{inner}</a>'
+        return f'<a{extra} class="{" ".join(dict.fromkeys(kept))}" href="{m.group(2)}" data-router-ignore>{inner}</a>'
 
     return pattern.sub(sub, text)
 
