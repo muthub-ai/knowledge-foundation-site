@@ -94,7 +94,8 @@ test("theme pages list their notes", async ({ page }) => {
     await page.goto(t.url + "/");
     const members = notes.filter((n: any) => n.id.startsWith(t.url.slice(1) + "/"));
     expect(members.length).toBeGreaterThan(0);
-    await expect(page.locator(`a[href*="${members[0].url.split("/").pop()}"]`).first()).toBeVisible();
+    // The page's own list of notes (Quartz's .section-ul), not the note drawer in the sidebar.
+    await expect(page.locator(`ul.section-ul a[href*="${members[0].url.split("/").pop()}"]`).first()).toBeVisible();
   }
 });
 
