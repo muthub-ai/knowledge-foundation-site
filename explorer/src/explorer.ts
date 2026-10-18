@@ -363,15 +363,22 @@ function fitNodes(ids: string[], opts: { maxRatio?: number; besidePanel?: boolea
   // in the width left between the chrome: zoom out step by step until they do, then centre that box.
   const named = (opts.named ?? ids).map((id) => ({ d: renderer.getNodeDisplayData(id), r: labelReach(id) })).filter((n) => n.d);
   const box = (k: number) => [Math.min(x0, ...named.map((n) => n.d!.x - n.r.left * k)), Math.max(x1, ...named.map((n) => n.d!.x + n.r.right * k))];
-  let ratio = Math.min(opts.maxRatio ?? 1, Math.max(0.25, span * 1.25));
-  for (let i = 0; i < 24 && ratio < 1.2; i++) {
+  // A selected note always zooms in (maxRatio); a theme may zoom out to 1.2 so its outer names fit.
+  const limit = opts.maxRatio ?? 1.2;
+  let ratio = Math.min(limit, Math.max(0.25, span * 1.25));
+  for (let i = 0; i < 24 && ratio < limit; i++) {
     const [l, r] = box(ratio / D);
     if (r - l <= (room * ratio) / D) break;
-    ratio = Math.min(1.2, ratio * 1.12);
+    ratio = Math.min(limit, ratio * 1.12);
   }
   const k = ratio / D, toCam = (px: number) => px * k;
   const [bl, br] = box(k);
-  const cx = (bl + br) / 2;
+  let cx = (bl + br) / 2;
+  // When not everything fits, the selected note's own name still must: slide the frame until it is on screen.
+  if (c) {
+    const own = labelReach(opts.centre!), half = (room * k) / 2;
+    cx = Math.min(Math.max(cx, c.x + own.right * k - half + toCam(8)), c.x - own.left * k + half - toCam(8));
+  }
   let dx = 0, dy = 0;
   if (wide) dx += toCam(panelPx / 2) - toCam(legendPx / 2);
   else if (opts.besidePanel && !panel.hidden) dy -= toCam(panel.offsetHeight / 2); // a lower camera lifts the nodes above the bottom sheet
