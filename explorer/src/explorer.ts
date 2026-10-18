@@ -18,7 +18,7 @@ import { extremityArrow, layerFill, layerPlain, pathCurved, pathLine, sdfCircle,
 type GNode = {
   id: string; type: string; label: string; url: string; summary: string; trust: string; status: string;
   updated: string; tags: string[]; degree: number; community: number; x: number; y: number; canonical?: string;
-  verified?: string; stale_after?: string; source_date?: string;
+  verified?: string; stale_after?: string; source_date?: string; entityKind?: string;
 };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 // "2026-03-07" -> "Mar 7, 2026"; anything else is passed through.
@@ -33,8 +33,13 @@ type GEdge = { source: string; target: string; type: string; origin: string; wei
 // Theme colours: one hue per theme, tuned for each background (light: deep and inky; dark: luminous).
 const THEME_LIGHT = ["#0b6b7a", "#3d4fc4", "#b5650f", "#b2306b", "#2d7a4c", "#6a4c9c", "#7a6400"];
 const THEME_DARK = ["#5fd3e0", "#93a2ff", "#f5b360", "#f584b8", "#74d6a0", "#c3a6f5", "#e6cf5c"];
-const SHAPE: Record<string, string> = { Theme: "circle", Essay: "circle", Initiative: "diamond", Playbook: "square", Source: "triangle" };
-const DEFAULT_OFF_TYPES = new Set(["Source"]);
+const SHAPE: Record<string, string> = { Theme: "circle", Essay: "circle", Initiative: "diamond", Playbook: "square", Source: "triangle", Entity: "circle" };
+// Entities are the semantic layer (Semantica, ids "ext:..."): grey, small, hidden until the reader turns them on.
+const DEFAULT_OFF_TYPES = new Set(["Source", "Entity"]);
+const NOT_NOTES = new Set(["Source", "Theme", "Entity"]);
+const isNote = (n: GNode) => !NOT_NOTES.has(n.type);
+// A node type and the only edges that reach it are shown and hidden together.
+const TYPE_ORIGIN: Record<string, string> = { Source: "source", Entity: "extracted" };
 const DEFAULT_OFF_ORIGINS = new Set(["source", "extracted"]);
 const ORIGIN_LABEL: Record<string, string> = {
   frontmatter: "Declared relations", link: "Links in text", folder: "Theme membership", source: "Sources", extracted: "Extracted (machine)",
@@ -105,13 +110,13 @@ function paint() {
     return t ? pal[themes.indexOf(t) % pal.length] : muted;
   };
   graph.updateEachNodeAttributes((n, a: any) => ({
-    ...a, color: a.kind === "Source" ? muted : colourOf(n), labelColor: ink, page,
+    ...a, color: a.kind === "Source" || a.kind === "Entity" ? muted : colourOf(n), labelColor: ink, page,
     halo: hexA(colourOf(n).startsWith("#") ? colourOf(n) : "#888888", isDark() ? 0.75 : 0.55),
     ring: hexA(colourOf(n).startsWith("#") ? colourOf(n) : "#888888", isDark() ? 0.35 : 0.22),
     pill: hexA(page.startsWith("#") ? page : "#ffffff", isDark() ? 0.82 : 0.9), pillLine: isDark() ? "rgba(255,255,255,0.10)" : "rgba(21,23,28,0.08)",
   }));
   graph.updateEachEdgeAttributes((_e, a: any, s) => {
-    const c = colourOf(s);
+    const c = a.origin === "extracted" ? muted : colourOf(s); // machine-found edges stay grey, like their entities
     return { ...a, color: c.startsWith("#") ? hexA(c, EDGE_ALPHA[a.origin] ?? 0.4) : c, activeColor: c };
   });
   document.querySelectorAll<HTMLElement>("[data-theme-dot]").forEach((el) => (el.style.background = colourOf(el.dataset.themeDot!)));
@@ -121,7 +126,7 @@ function paint() {
 // Node sizes are in screen pixels; small screens get smaller nodes so clusters stay readable.
 const SIZE_SCALE = Math.min(1, Math.max(0.6, Math.min(innerWidth, innerHeight) / 850));
 function nodeSize(n: GNode) {
-  return SIZE_SCALE * (n.type === "Theme" ? 16 + Math.sqrt(n.degree || 0) * 2 : (n.type === "Source" ? 4 : 6) + Math.sqrt(n.degree || 0) * 2.1);
+  return SIZE_SCALE * (n.type === "Theme" ? 16 + Math.sqrt(n.degree || 0) * 2 : (n.type === "Source" || n.type === "Entity" ? 4 : 6) + Math.sqrt(n.degree || 0) * 2.1);
 }
 
 /**
@@ -135,7 +140,7 @@ function layout(nodes: GNode[], edges: GEdge[]) {
   const R = 100;
   const members: Record<string, string[]> = {};
   themes.forEach((t) => (members[t] = []));
-  nodes.forEach((n) => { if (n.type !== "Theme" && n.type !== "Source" && themeOf[n.id]) members[themeOf[n.id]].push(n.id); });
+  nodes.forEach((n) => { if (isNote(n) && themeOf[n.id]) members[themeOf[n.id]].push(n.id); });
   // Theme ring order: greedy walk from the largest theme to its most linked unplaced neighbour.
   const w: Record<string, number> = {};
   const key = (a: string, b: string) => (a < b ? a + "|" + b : b + "|" + a);
@@ -190,7 +195,7 @@ function layout(nodes: GNode[], edges: GEdge[]) {
     }
   }
   // Notes without a theme: a small ring at the centre.
-  const loose = nodes.filter((n) => n.type !== "Theme" && n.type !== "Source" && !pos[n.id]);
+  const loose = nodes.filter((n) => isNote(n) && !pos[n.id]);
   loose.forEach((n, i) => {
     const a = (i / Math.max(1, loose.length)) * TAU;
     pos[n.id] = { x: Math.cos(a) * 18, y: Math.sin(a) * 18, side: Math.cos(a) < 0 ? "left" : "right" };
@@ -203,6 +208,21 @@ function layout(nodes: GNode[], edges: GEdge[]) {
     const t = themeOf[note], c = t ? hub[t] : { x: 0, y: 0 };
     const a = Math.atan2(pos[note].y - c.y, pos[note].x - c.x) + ((fan[note] = (fan[note] || 0) + 1) - 1) * 0.35;
     pos[src] = { x: pos[note].x + Math.cos(a) * 9, y: pos[note].y + Math.sin(a) * 9, side: Math.cos(a) < 0 ? "left" : "right" };
+  });
+  // Entities: at the centre of the notes that mention them, pulled a little toward the middle of the map (an entity
+  // shared across themes lands between them), with a small deterministic offset so entities on one note do not stack.
+  const mentions: Record<string, string[]> = {};
+  edges.filter((e) => e.origin === "extracted").forEach((e) => {
+    const [ent, note] = byId[e.target].type === "Entity" ? [e.target, e.source] : [e.source, e.target];
+    if (pos[note]) (mentions[ent] ||= []).push(note);
+  });
+  nodes.filter((n) => n.type === "Entity").forEach((n, i) => {
+    const ns = mentions[n.id] || [];
+    if (!ns.length) return;
+    const cx = ns.reduce((a, id) => a + pos[id].x, 0) / ns.length, cy = ns.reduce((a, id) => a + pos[id].y, 0) / ns.length;
+    const pull = ns.length > 1 ? 0.8 : 1.08, a = i * 2.399963, r = 5 + (i % 4) * 2.5; // golden-angle spread
+    const x = cx * pull + Math.cos(a) * r, y = cy * pull + Math.sin(a) * r;
+    pos[n.id] = { x, y, side: x < 0 ? "left" : "right" };
   });
   nodes.forEach((n, i) => { if (!pos[n.id]) pos[n.id] = { x: Math.cos(i) * 140, y: Math.sin(i) * 140, side: "right" }; });
   return pos;
@@ -287,15 +307,23 @@ function buildFilters(nodes: GNode[], edges: GEdge[]) {
     `<label><input type="checkbox" value="${esc(o)}"> ${esc(ORIGIN_LABEL[o])} <span class="muted">${origins[o]}</span></label>`).join(""));
   document.querySelectorAll<HTMLInputElement>("#f-types input").forEach((i) => i.addEventListener("change", () => {
     i.checked ? offTypes.delete(i.value) : offTypes.add(i.value);
-    // Source nodes only connect through "source" edges: show and hide them together.
-    if (i.value === "Source") i.checked ? offOrigins.delete("source") : offOrigins.add("source");
+    // Sources and entities only connect through their own edges: show and hide them together.
+    const o = TYPE_ORIGIN[i.value];
+    if (o) { i.checked ? offOrigins.delete(o) : offOrigins.add(o); syncFilterBoxes(); }
     applyFilters();
     applyFocus();
   }));
   document.querySelectorAll<HTMLInputElement>("#f-origins input").forEach((i) => i.addEventListener("change", () => {
     i.checked ? offOrigins.delete(i.value) : offOrigins.add(i.value);
+    const t = Object.keys(TYPE_ORIGIN).find((k) => TYPE_ORIGIN[k] === i.value);
+    if (t) { i.checked ? offTypes.delete(t) : offTypes.add(t); syncFilterBoxes(); }
     applyFilters();
+    applyFocus();
   }));
+}
+function syncFilterBoxes() {
+  document.querySelectorAll<HTMLInputElement>("#f-types input").forEach((i) => (i.checked = !offTypes.has(i.value)));
+  document.querySelectorAll<HTMLInputElement>("#f-origins input").forEach((i) => (i.checked = !offOrigins.has(i.value)));
 }
 
 // -- legend: themes (click to focus a cluster) and shapes ------------------------------------------------------------
@@ -405,6 +433,11 @@ const REL_LABEL: Record<string, string> = {
 };
 function relLabel(r: string) { return REL_LABEL[r] ?? String(r).replace(/_/g, " "); }
 // Connections a reader would count: links in the text and declared relations, not theme membership or sources.
+function mentionCount(id: string) {
+  let n = 0;
+  graph.forEachEdge(id, (_e, a: any) => { if (a.origin === "extracted") n++; });
+  return n;
+}
 function linkCount(id: string) {
   let n = 0;
   graph.forEachEdge(id, (_e, a: any) => { if (a.origin === "link" || a.origin === "frontmatter") n++; });
@@ -416,7 +449,7 @@ function openPanel(id: string) {
   const n = byId[id];
   const colour = graph.getNodeAttribute(id, "color");
   // One list per kind of connection; a note linked both ways appears once with ⇄. Theme membership is in the kicker.
-  const GROUP: Record<string, string> = { link: "Linked notes", frontmatter: "Linked notes", source: n.type === "Source" ? "Notes drawn from it" : "Sources", folder: n.type === "Theme" ? "Notes in this theme" : "", extracted: "Mentions" };
+  const GROUP: Record<string, string> = { link: "Linked notes", frontmatter: "Linked notes", source: n.type === "Source" ? "Notes drawn from it" : "Sources", folder: n.type === "Theme" ? "Notes in this theme" : "", extracted: n.type === "Entity" ? "Mentioned in" : "Mentions (machine-extracted)" };
   const rows: Record<string, Map<string, { out: boolean; inn: boolean; rel: Set<string> }>> = {};
   const add = (a: any, other: string, out: boolean, e: string) => {
     const g = GROUP[a.origin] ?? "Other connections";
@@ -438,7 +471,7 @@ function openPanel(id: string) {
       (g === "Linked notes" ? `<span class="dir" title="${glyphTitle(r)}" aria-label="${glyphTitle(r)}">${glyph(r)}</span>` : "") + `</a></li>`);
     return `<h3>${esc(g)} <span class="muted">${items.length}</span></h3><ul>${items.join("")}</ul>`;
   });
-  const meta = n.type !== "Source" && n.type !== "Theme"
+  const meta = isNote(n)
     ? `<dl class="prov">` +
       `<div><dt>Review</dt><dd class="${n.trust === "human-reviewed" ? "ok" : ""}">${esc(n.verified ? `Reviewed ${humanDay(n.verified)}` : trustLabel(n.trust))}</dd></div>` +
       `<div><dt>Connections</dt><dd>${linkCount(id)}</dd></div>` +
@@ -454,7 +487,7 @@ function openPanel(id: string) {
     `<div class="g-panel-body">` +
     `<p class="kind"><span class="shape shape-${esc(SHAPE[n.type] || "circle")}" data-c="${esc(colour)}"></span>${esc(n.type)}${themeOf[id] ? ` · ${esc(byId[themeOf[id]].label)}` : ""}</p>` +
     `<h2 tabindex="-1">${esc(n.label)}</h2>` + (n.summary ? `<p class="summary">${esc(n.summary)}</p>` : "") + meta +
-    (n.canonical
+    (n.type === "Entity" ? "" : n.canonical
       ? `<p class="actions"><a class="open" href="${esc(n.url)}">Open the note</a><a class="wiki" href="${esc(n.canonical)}">Read the essay</a></p>`
       : `<p class="actions"><a class="open" href="${esc(n.url)}">${isExternal(n.url) ? "Open source" : n.type === "Theme" ? "Open theme" : "Open the note"}</a></p>`) +
     lists.join("") + `</div>`;
@@ -479,7 +512,7 @@ function closePanel(refocus = true) {
 
 function focusNode(id: string, opts: { moveFocus?: boolean } = {}) {
   const kind = graph.getNodeAttribute(id, "kind");
-  if (offTypes.has(kind)) { offTypes.delete(kind); if (kind === "Source") offOrigins.delete("source"); applyFilters(); }
+  if (offTypes.has(kind)) { offTypes.delete(kind); if (TYPE_ORIGIN[kind]) offOrigins.delete(TYPE_ORIGIN[kind]); syncFilterBoxes(); applyFilters(); }
   openPanel(id);
   // Centre the note and zoom to show its neighbourhood (never wider than 85% of the map, so it always zooms in). A
   // note with few neighbours also shows its theme, so the reader keeps context.
@@ -556,12 +589,13 @@ function renderList() {
     `<tr><td><a href="${esc(n.url)}">${esc(n.label)}</a></td><td class="muted">${esc(n.type)}</td><td class="muted">${esc(humanDay(n.source_date) || "")}</td>` +
     `<td class="muted">${esc(review(n))}</td><td class="muted">${esc(humanDay(n.stale_after) || "")}</td><td class="n">${linkCount(n.id)}</td></tr>`;
   const groups = themes.filter((t) => shown.has(t) || Object.keys(themeOf).some((n) => themeOf[n] === t && shown.has(n))).map((t) => {
-    const members = Object.keys(themeOf).filter((n) => themeOf[n] === t && shown.has(n) && byId[n].type !== "Source")
+    const members = Object.keys(themeOf).filter((n) => themeOf[n] === t && shown.has(n) && isNote(byId[n]))
       .sort((a, b) => linkCount(b) - linkCount(a) || byId[a].label.localeCompare(byId[b].label));
     return `<tr><th scope="rowgroup" colspan="6"><span class="dot" data-bg="${esc(graph.getNodeAttribute(t, "color"))}" data-theme-dot="${esc(t)}"></span>${esc(byId[t].label)} <span class="muted">· ${members.length} note${members.length === 1 ? "" : "s"}</span></th></tr>` +
       members.map((id) => row(byId[id])).join("");
   });
-  const loose = [...shown].filter((id) => !themeOf[id] && byId[id].type !== "Theme").sort((a, b) => byId[a].label.localeCompare(byId[b].label));
+  const entities = [...shown].filter((id) => byId[id].type === "Entity").sort((a, b) => linkCount(b) - linkCount(a) || byId[a].label.localeCompare(byId[b].label));
+  const loose = [...shown].filter((id) => !themeOf[id] && isNote(byId[id])).sort((a, b) => byId[a].label.localeCompare(byId[b].label));
   const sources = [...shown].filter((id) => byId[id].type === "Source").sort((a, b) => byId[a].label.localeCompare(byId[b].label));
   listEl.innerHTML =
     `<table><caption class="sr">Notes in the graph, with their provenance</caption><thead><tr><th>Note</th><th>Kind</th><th>Source dated</th><th>Review</th><th>Re-check by</th><th class="n">Links</th></tr></thead><tbody>` +
@@ -569,6 +603,8 @@ function renderList() {
     (loose.length ? `<tr><th scope="rowgroup" colspan="6">Other</th></tr>` + loose.map((id) => row(byId[id])).join("") : "") +
     (sources.length ? `<tr><th scope="rowgroup" colspan="6">Sources <span class="muted">· ${sources.length}</span></th></tr>` +
       sources.map((id) => `<tr><td><a href="${esc(byId[id].url)}">${esc(byId[id].label)}</a></td><td class="muted">Source</td><td class="muted">${esc(humanDay(byId[id].updated))}</td><td></td><td></td><td class="n">${byId[id].degree || 0}</td></tr>`).join("") : "") +
+    (entities.length ? `<tr><th scope="rowgroup" colspan="6">Extracted entities <span class="muted">· ${entities.length} · found by Semantica, not reviewed</span></th></tr>` +
+      entities.map((id) => `<tr><td>${esc(byId[id].label)}</td><td class="muted">${esc(byId[id].entityKind || "Entity")}</td><td></td><td class="muted">Machine</td><td></td><td class="n">${mentionCount(id)}</td></tr>`).join("") : "") +
     `</tbody></table><p class="foot muted">Every column comes from the note's own frontmatter: Open Knowledge Format, nothing hand-typed.</p>`;
   applyColours(listEl);
 }
@@ -609,9 +645,9 @@ document.addEventListener("fullscreenchange", () => setTimeout(() => { renderer?
 
 // -- the page around the explorer: counts, theme cards, the most connected notes, the reading paths ------------------
 function fillPage(g: { nodes: GNode[]; edges: GEdge[] }) {
-  const notes = g.nodes.filter((n) => n.type !== "Source" && n.type !== "Theme");
+  const notes = g.nodes.filter(isNote);
   const sources = g.nodes.filter((n) => n.type === "Source").length;
-  const connections = g.edges.filter((e) => e.origin !== "source").length; // what the map shows by default
+  const connections = g.edges.filter((e) => !DEFAULT_OFF_ORIGINS.has(e.origin)).length; // what the map shows by default
   const put = (k: string, v: string) => document.querySelectorAll<HTMLElement>(`[data-stat="${k}"]`).forEach((el) => (el.textContent = v));
   put("notes", String(notes.length)); put("sources", String(sources)); put("connections", String(connections)); put("themes", String(themes.length));
   const WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
@@ -712,7 +748,12 @@ fetch("/graph.json")
   .then((g: { nodes: GNode[]; edges: GEdge[] }) => {
     // Links come from graph.json: only same-site paths and https URLs become hrefs (no javascript: or data: links).
     const safeUrl = (u?: string) => (u && /^(https:\/\/|\/(?!\/))/.test(u) ? u : undefined);
-    g.nodes.forEach((n) => { n.url = safeUrl(n.url) ?? "#"; n.canonical = safeUrl(n.canonical); byId[n.id] = n; });
+    g.nodes.forEach((n) => {
+      // Semantica's entities arrive typed by what they are (Concept, Tool, Organization), which would mix them with
+      // notes of the same kind: the explorer treats them as one kind, Entity, and keeps what they are as entityKind.
+      if (n.id.startsWith("ext:")) { n.entityKind = n.type; n.type = "Entity"; n.summary = `${n.entityKind}. Found by Semantica in ${n.degree || 0} note${n.degree === 1 ? "" : "s"}; machine-extracted, not reviewed.`; }
+      n.url = safeUrl(n.url) ?? "#"; n.canonical = safeUrl(n.canonical); byId[n.id] = n;
+    });
     const edges = g.edges.filter((e) => e.source !== e.target && byId[e.source] && byId[e.target]);
     // A note's theme is the theme its folder edge points at (either direction, to be safe).
     edges.filter((e) => e.origin === "folder").forEach((e) => {
@@ -808,7 +849,7 @@ fetch("/graph.json")
       if (byId[node].type === "Theme" && !selected) { legend.querySelector<HTMLButtonElement>(`[data-theme="${CSS.escape(node)}"]`)?.click(); return; }
       focusNode(node);
     });
-    renderer.on("doubleClickNode", (e: any) => { e.preventSigmaDefault?.(); location.href = primaryUrl(byId[e.node]); });
+    renderer.on("doubleClickNode", (e: any) => { e.preventSigmaDefault?.(); if (byId[e.node].type !== "Entity") location.href = primaryUrl(byId[e.node]); });
     renderer.on("clickStage", () => { if (selected) closePanel(); else clearThemeFocus(); });
 
     buildFilters(g.nodes, edges);
