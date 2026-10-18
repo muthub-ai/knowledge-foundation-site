@@ -1,7 +1,7 @@
 # Knowledge Foundation website
 
 **wiki.muthub.org**: [Quartz 5](https://quartz.jzhao.xyz) over the Knowledge Foundation bundle, with a
-[Sigma.js 4](https://www.sigmajs.org) graph explorer at `/graph/`. It reads one thing, a release of
+[Sigma.js 4](https://www.sigmajs.org) graph explorer as the home page (`/`, also at `/graph/`). It reads one thing, a release of
 [`muthub-ai/knowledge-foundation`](https://github.com/muthub-ai/knowledge-foundation) (`bundle.tgz` and `graph.json`),
 and never imports code from that repository (ADR 004 and 014 there).
 
@@ -19,7 +19,11 @@ What a reader gets:
   essay on muthub.org", because the essay is the canonical page. Then the note, its sources with publication dates,
   See also, and Quartz's backlinks, table of contents, popovers and tag list.
 - **Theme folders, search, the folder explorer, dark mode and RSS**, from Quartz.
-- **`/graph/`**: the whole graph in Sigma.js, designed as a map ([design notes](docs/explorer-design.md)): themes as
+- **The home page (`/`)**: the graph, dark by default with a light toggle. Editorial copy and counts beside a framed
+  explorer; below it "How a note gets here" (the six-step pipeline), "Three ways in" (curated reading paths), "Enter by
+  theme", "Most connected" and a key. The explorer's inspector shows a note's provenance (review state, connections,
+  source date, re-check date) with "Open the note" and "Read the essay"; its list view is a provenance table grouped by
+  theme. Quartz's own index moved to `/notes/`. Sigma map ([design notes](docs/explorer-design.md)): themes as
   hubs on a ring, each theme's notes orbiting it in the theme's colour, shape by kind. It assembles itself on load;
   hovering fades the rest of the map and lights a note's neighbourhood; a theme in the legend focuses its cluster; the
   selected note glows and its panel opens with "Read on muthub.org" first for essays. Search suggests as you type ("/"),

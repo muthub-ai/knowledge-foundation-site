@@ -18,7 +18,14 @@ import { extremityArrow, layerFill, layerPlain, pathCurved, pathLine, sdfCircle,
 type GNode = {
   id: string; type: string; label: string; url: string; summary: string; trust: string; status: string;
   updated: string; tags: string[]; degree: number; community: number; x: number; y: number; canonical?: string;
+  verified?: string; stale_after?: string; source_date?: string;
 };
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// "2026-03-07" -> "Mar 7, 2026"; anything else is passed through.
+function humanDay(d?: string) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || "");
+  return m ? `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}` : d || "";
+}
 // Where a reader should land: the essay on muthub.org when the note summarises one, else the wiki page.
 const primaryUrl = (n: GNode) => n.canonical || n.url;
 type GEdge = { source: string; target: string; type: string; origin: string; weight?: number };
@@ -320,7 +327,8 @@ function clearThemeFocus() {
 
 // -- camera ----------------------------------------------------------------------------------------------------------
 function fitAll() { renderer.getCamera().animate({ x: 0.5, y: 0.5, ratio: 1, angle: 0 }, { duration: T(650), easing: "cubicInOut" }); }
-const NARROW = () => container.clientWidth <= 760;
+// The phone layout (panel as a bottom sheet) is a page-width decision: in the hero the frame is narrow on purpose.
+const NARROW = () => window.innerWidth <= 760;
 /**
  * Frame some nodes, leaving room for the chrome: on wide screens the legend (left) and the panel (right) take space,
  * so the camera shifts to centre the nodes between them; on narrow screens the panel is a bottom sheet, so the nodes
@@ -357,7 +365,7 @@ function fitNodes(ids: string[], opts: { maxRatio?: number; besidePanel?: boolea
   const D = Math.max(1, Math.min(w, h) - 2 * 48);
   const wide = !NARROW();
   const panelPx = wide && opts.besidePanel && !panel.hidden ? panel.offsetWidth + 28 : 0;
-  const legendPx = wide && !legend.hidden && legend.offsetParent ? legend.offsetWidth + 28 : 0;
+  const legendPx = 0; // the theme chips are a strip along the top (roomY below), not a column
   const room = Math.max(120, w - panelPx - legendPx - 32);
   // Names stick out past their dots. Every named node (the ones whose labels show in this view) must fit with its name
   // in the width left between the chrome: zoom out step by step until they do, then centre that box.
@@ -366,9 +374,11 @@ function fitNodes(ids: string[], opts: { maxRatio?: number; besidePanel?: boolea
   // A selected note always zooms in (maxRatio); a theme may zoom out to 1.2 so its outer names fit.
   const limit = opts.maxRatio ?? 1.2;
   let ratio = Math.min(limit, Math.max(0.25, span * 1.25));
+  // Vertically, the legend chips take the top of the frame; the rest must hold the selection's neighbourhood.
+  const roomY = Math.max(120, h - (legend.hidden || !legend.offsetParent ? 0 : legend.offsetHeight + 28) - 56);
   for (let i = 0; i < 24 && ratio < limit; i++) {
     const [l, r] = box(ratio / D);
-    if (r - l <= (room * ratio) / D) break;
+    if (r - l <= (room * ratio) / D && 2 * Math.max(cy - y0, y1 - cy) <= (roomY * ratio) / D) break;
     ratio = Math.min(limit, ratio * 1.12);
   }
   const k = ratio / D, toCam = (px: number) => px * k;
@@ -377,10 +387,13 @@ function fitNodes(ids: string[], opts: { maxRatio?: number; besidePanel?: boolea
   // When not everything fits, the selected note's own name still must: slide the frame until it is on screen.
   if (c) {
     const own = labelReach(opts.centre!), half = (room * k) / 2;
-    cx = Math.min(Math.max(cx, c.x + own.right * k - half + toCam(8)), c.x - own.left * k + half - toCam(8));
+    const lower = c.x + own.right * k - half + toCam(8), upper = c.x - own.left * k + half - toCam(8);
+    // A name longer than the room beside the panel: keep the side the name is on fully in view (the dot may then sit
+    // at the room's edge); a name centred under its dot can only be centred.
+    cx = lower <= upper ? Math.min(Math.max(cx, lower), upper) : own.left > own.right ? upper : own.right > own.left ? lower : c.x;
   }
   let dx = 0, dy = 0;
-  if (wide) dx += toCam(panelPx / 2) - toCam(legendPx / 2);
+  if (wide) { dx += toCam(panelPx / 2) - toCam(legendPx / 2); dy += toCam((h - roomY) / 2 - 28); } // a higher camera sits the nodes below the chips
   else if (opts.besidePanel && !panel.hidden) dy -= toCam(panel.offsetHeight / 2); // a lower camera lifts the nodes above the bottom sheet
   renderer.getCamera().animate({ x: cx + dx, y: cy + dy, ratio }, { duration: T(700), easing: "cubicInOut" });
 }
@@ -391,6 +404,12 @@ const REL_LABEL: Record<string, string> = {
   part_of: "part of", supersedes: "supersedes", answers: "answers", about: "about", authored_by: "authored by", mentions: "mentions",
 };
 function relLabel(r: string) { return REL_LABEL[r] ?? String(r).replace(/_/g, " "); }
+// Connections a reader would count: links in the text and declared relations, not theme membership or sources.
+function linkCount(id: string) {
+  let n = 0;
+  graph.forEachEdge(id, (_e, a: any) => { if (a.origin === "link" || a.origin === "frontmatter") n++; });
+  return n;
+}
 function openPanel(id: string) {
   selected = id;
   focusTheme = null;
@@ -420,7 +439,13 @@ function openPanel(id: string) {
     return `<h3>${esc(g)} <span class="muted">${items.length}</span></h3><ul>${items.join("")}</ul>`;
   });
   const meta = n.type !== "Source" && n.type !== "Theme"
-    ? `<p class="meta"><span class="badge ${n.trust === "human-reviewed" ? "ok" : ""}">${esc(trustLabel(n.trust))}</span>${n.updated ? `<span class="muted">Updated ${esc(n.updated)}</span>` : ""}</p>` : "";
+    ? `<dl class="prov">` +
+      `<div><dt>Review</dt><dd class="${n.trust === "human-reviewed" ? "ok" : ""}">${esc(n.verified ? `Reviewed ${humanDay(n.verified)}` : trustLabel(n.trust))}</dd></div>` +
+      `<div><dt>Connections</dt><dd>${linkCount(id)}</dd></div>` +
+      (n.source_date ? `<div><dt>Source</dt><dd>${esc(n.canonical ? "muthub.org · " : "")}${esc(humanDay(n.source_date))}</dd></div>` : "") +
+      (n.stale_after ? `<div><dt>Re-check by</dt><dd>${esc(humanDay(n.stale_after))}</dd></div>` : "") +
+      `</dl>`
+    : "";
   panel.innerHTML =
     `<div class="accent" data-bg="${esc(colour)}"></div>` +
     `<button class="close" type="button" aria-label="Close">×</button>` +
@@ -430,8 +455,8 @@ function openPanel(id: string) {
     `<p class="kind"><span class="shape shape-${esc(SHAPE[n.type] || "circle")}" data-c="${esc(colour)}"></span>${esc(n.type)}${themeOf[id] ? ` · ${esc(byId[themeOf[id]].label)}` : ""}</p>` +
     `<h2 tabindex="-1">${esc(n.label)}</h2>` + (n.summary ? `<p class="summary">${esc(n.summary)}</p>` : "") + meta +
     (n.canonical
-      ? `<p class="actions"><a class="open" href="${esc(n.canonical)}">Read on muthub.org <span aria-hidden="true">→</span></a><a class="wiki" href="${esc(n.url)}">Wiki summary</a></p>`
-      : `<p class="actions"><a class="open" href="${esc(n.url)}">${isExternal(n.url) ? "Open source" : n.type === "Theme" ? "Open theme" : "Open note"} <span aria-hidden="true">→</span></a></p>`) +
+      ? `<p class="actions"><a class="open" href="${esc(n.url)}">Open the note</a><a class="wiki" href="${esc(n.canonical)}">Read the essay</a></p>`
+      : `<p class="actions"><a class="open" href="${esc(n.url)}">${isExternal(n.url) ? "Open source" : n.type === "Theme" ? "Open theme" : "Open the note"}</a></p>`) +
     lists.join("") + `</div>`;
   applyColours(panel);
   panel.hidden = false;
@@ -525,11 +550,29 @@ suggest.addEventListener("mousedown", (ev) => {
 // -- list view -------------------------------------------------------------------------------------------------------
 function renderList() {
   if (listEl.hidden) return;
-  const rows = visibleNodes().map((id) => byId[id]).sort((a, b) => a.label.localeCompare(b.label)).map((n) =>
-    `<tr><td><a href="${esc(primaryUrl(n))}">${esc(n.label)}</a></td><td>${esc(n.type)}</td><td>${themeOf[n.id] ? esc(byId[themeOf[n.id]].label) : ""}</td><td>${n.degree || 0}</td><td>${esc(n.summary)}</td></tr>`);
-  listEl.innerHTML = `<table><caption class="sr">Nodes in the graph</caption><thead><tr><th>Name</th><th>Type</th><th>Theme</th><th>Connections</th><th>Summary</th></tr></thead><tbody>${rows.join("")}</tbody></table>`;
+  const shown = new Set(visibleNodes());
+  const review = (n: GNode) => (n.verified ? humanDay(n.verified) : n.trust === "human-reviewed" ? "Reviewed" : "Not yet");
+  const row = (n: GNode) =>
+    `<tr><td><a href="${esc(n.url)}">${esc(n.label)}</a></td><td class="muted">${esc(n.type)}</td><td class="muted">${esc(humanDay(n.source_date) || "")}</td>` +
+    `<td class="muted">${esc(review(n))}</td><td class="muted">${esc(humanDay(n.stale_after) || "")}</td><td class="n">${linkCount(n.id)}</td></tr>`;
+  const groups = themes.filter((t) => shown.has(t) || Object.keys(themeOf).some((n) => themeOf[n] === t && shown.has(n))).map((t) => {
+    const members = Object.keys(themeOf).filter((n) => themeOf[n] === t && shown.has(n) && byId[n].type !== "Source")
+      .sort((a, b) => linkCount(b) - linkCount(a) || byId[a].label.localeCompare(byId[b].label));
+    return `<tr><th scope="rowgroup" colspan="6"><span class="dot" data-bg="${esc(graph.getNodeAttribute(t, "color"))}" data-theme-dot="${esc(t)}"></span>${esc(byId[t].label)} <span class="muted">· ${members.length} note${members.length === 1 ? "" : "s"}</span></th></tr>` +
+      members.map((id) => row(byId[id])).join("");
+  });
+  const loose = [...shown].filter((id) => !themeOf[id] && byId[id].type !== "Theme").sort((a, b) => byId[a].label.localeCompare(byId[b].label));
+  const sources = [...shown].filter((id) => byId[id].type === "Source").sort((a, b) => byId[a].label.localeCompare(byId[b].label));
+  listEl.innerHTML =
+    `<table><caption class="sr">Notes in the graph, with their provenance</caption><thead><tr><th>Note</th><th>Kind</th><th>Source dated</th><th>Review</th><th>Re-check by</th><th class="n">Links</th></tr></thead><tbody>` +
+    groups.join("") +
+    (loose.length ? `<tr><th scope="rowgroup" colspan="6">Other</th></tr>` + loose.map((id) => row(byId[id])).join("") : "") +
+    (sources.length ? `<tr><th scope="rowgroup" colspan="6">Sources <span class="muted">· ${sources.length}</span></th></tr>` +
+      sources.map((id) => `<tr><td><a href="${esc(byId[id].url)}">${esc(byId[id].label)}</a></td><td class="muted">Source</td><td class="muted">${esc(humanDay(byId[id].updated))}</td><td></td><td></td><td class="n">${byId[id].degree || 0}</td></tr>`).join("") : "") +
+    `</tbody></table><p class="foot muted">Every column comes from the note's own frontmatter: Open Knowledge Format, nothing hand-typed.</p>`;
+  applyColours(listEl);
 }
-function placeList() { listEl.style.top = `${toolbar.offsetTop + toolbar.offsetHeight + 10}px`; }
+function placeList() { const tools = toolbar.querySelector<HTMLElement>(".tools") ?? toolbar; listEl.style.top = `${toolbar.offsetTop + tools.offsetHeight + 10}px`; }
 addEventListener("resize", () => { if (!listEl.hidden) placeList(); });
 viewBtn.addEventListener("click", () => {
   const on = listEl.hidden;
@@ -541,7 +584,7 @@ viewBtn.addEventListener("click", () => {
   legend.style.visibility = on ? "hidden" : "visible";
   updateStatus();
   viewBtn.setAttribute("aria-pressed", String(on));
-  viewBtn.textContent = on ? "Graph view" : "List view";
+  viewBtn.textContent = on ? "Graph" : "List";
   renderList();
 });
 
@@ -557,6 +600,60 @@ $("g-reset").addEventListener("click", () => {
 $("g-zoom-in").addEventListener("click", () => renderer.getCamera().zoomIn({ duration: T(220) }));
 $("g-zoom-out").addEventListener("click", () => renderer.getCamera().zoomOut({ duration: T(220) }));
 $("g-fit").addEventListener("click", fitAll);
+$("g-full")?.addEventListener("click", () => {
+  const frame = $("explorer");
+  if (document.fullscreenElement) document.exitFullscreen?.();
+  else frame.requestFullscreen?.().catch(() => frame.scrollIntoView({ behavior: "smooth", block: "start" }));
+});
+document.addEventListener("fullscreenchange", () => setTimeout(() => { renderer?.resize(); fitAll(); }, 60));
+
+// -- the page around the explorer: counts, theme cards, the most connected notes, the reading paths ------------------
+function fillPage(g: { nodes: GNode[]; edges: GEdge[] }) {
+  const notes = g.nodes.filter((n) => n.type !== "Source" && n.type !== "Theme");
+  const sources = g.nodes.filter((n) => n.type === "Source").length;
+  const connections = g.edges.filter((e) => e.origin !== "source").length; // what the map shows by default
+  const put = (k: string, v: string) => document.querySelectorAll<HTMLElement>(`[data-stat="${k}"]`).forEach((el) => (el.textContent = v));
+  put("notes", String(notes.length)); put("sources", String(sources)); put("connections", String(connections)); put("themes", String(themes.length));
+  const WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+  const TENS = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+  const words = (n: number) => (n < 20 ? WORDS[n] : n < 100 ? TENS[Math.floor(n / 10)] + (n % 10 ? "-" + WORDS[n % 10].toLowerCase() : "") : String(n));
+  put("notes-words", words(notes.length));
+
+  const cards = $("theme-cards");
+  if (cards) {
+    cards.innerHTML = themes.map((t) => {
+      const members = notes.filter((n) => themeOf[n.id] === t).sort((a, b) => linkCount(b.id) - linkCount(a.id));
+      const tops = members.slice(0, 3).map((n) => esc(n.label.split(":")[0])).join(" · ");
+      return `<a class="theme-card" href="${esc(byId[t].url)}"><span class="name"><span class="dot" data-bg="${esc(graph.getNodeAttribute(t, "color"))}" data-theme-dot="${esc(t)}"></span>${esc(byId[t].label)}</span>` +
+        `<span class="count">${members.length} note${members.length === 1 ? "" : "s"}</span><span class="tops">${tops}</span></a>`;
+    }).join("");
+    applyColours(cards);
+  }
+  const hubs = $("hubs");
+  if (hubs) {
+    const top = notes.slice().sort((a, b) => linkCount(b.id) - linkCount(a.id) || a.label.localeCompare(b.label)).slice(0, 5);
+    hubs.innerHTML = top.map((n, i) => `<li><span class="rank">${i + 1}</span><a href="#explorer" data-id="${esc(n.id)}">${esc(n.label)}</a><span class="n">${linkCount(n.id)} links</span></li>`).join("");
+    hubs.addEventListener("click", (ev) => {
+      const a = (ev.target as HTMLElement).closest<HTMLElement>("[data-id]");
+      if (!a) return;
+      ev.preventDefault();
+      $("explorer").scrollIntoView({ behavior: REDUCE ? "auto" : "smooth", block: "center" });
+      focusNode(a.dataset.id!);
+    });
+  }
+  // Reading paths: each essay links to its note page; "Follow this path" opens its first note in the explorer.
+  document.querySelectorAll<HTMLAnchorElement>("[data-note]").forEach((a) => {
+    const n = byId[a.dataset.note!];
+    if (n) a.href = n.url; else a.closest("li")?.remove();
+  });
+  document.querySelectorAll<HTMLAnchorElement>("[data-path-start]").forEach((a) => a.addEventListener("click", (ev) => {
+    const id = a.dataset.pathStart!;
+    if (!byId[id]) return;
+    ev.preventDefault();
+    $("explorer").scrollIntoView({ behavior: REDUCE ? "auto" : "smooth", block: "center" });
+    focusNode(id);
+  }));
+}
 document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape" && selected) closePanel();
   else if (ev.key === "Escape" && focusTheme) clearThemeFocus();
@@ -716,6 +813,7 @@ fetch("/graph.json")
 
     buildFilters(g.nodes, edges);
     applyFilters();
+    fillPage(g);
     // Fix the camera's frame to the shown nodes' final extent, so the entrance (and toggling sources) never rescales it.
     const shownPos = g.nodes.filter((n) => !DEFAULT_OFF_TYPES.has(n.type)).map((n) => pos[n.id]);
     renderer.setCustomBBox({
@@ -730,7 +828,8 @@ fetch("/graph.json")
       history.replaceState(null, "", url);
     }
     // A deep link (from a note's "Show in graph") skips the entrance: the reader came for that note, now.
-    (deepLink ? (cb: () => void) => { renderer.setGraphState({ reveal: 1 }); cb(); } : entrance)(() => {
+    // Sigma measures the stage on its first frame: the fit waits for it, or display positions are not there yet.
+    (deepLink ? (cb: () => void) => { renderer.setGraphState({ reveal: 1 }); renderer.refresh(); requestAnimationFrame(() => requestAnimationFrame(cb)); } : entrance)(() => {
       if (deepLink) focusNode(want!);
       else if (want) updateStatus("That note is not in the graph. Showing the whole map.");
       // A small read-only handle for the end-to-end tests (and anyone curious in the console).

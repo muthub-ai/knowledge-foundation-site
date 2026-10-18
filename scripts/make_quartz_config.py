@@ -34,7 +34,7 @@ OPTIONS = {
     "@quartz-community/crawl-links": {"markdownLinkResolution": "absolute"},
     "@quartz-community/obsidian-flavored-markdown": {"enableInHtmlEmbed": False, "enableCheckbox": False},
     "@quartz-community/footer": {"links": {
-        "Essays (muthub.org)": "https://muthub.org", "Graph explorer": "https://wiki.muthub.org/graph/",
+        "Essays (muthub.org)": "https://muthub.org", "Graph explorer": "https://wiki.muthub.org/",
         "llms.txt": "https://wiki.muthub.org/llms.txt", "Source": "https://github.com/muthub-ai/knowledge-foundation",
         "LinkedIn": "https://www.linkedin.com/in/mbommiah/"}},
 }

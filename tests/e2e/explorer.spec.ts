@@ -2,7 +2,8 @@ import { test, expect, Page } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
 
-// The Sigma.js graph explorer at /graph/. Runs against any build of public/ (real Quartz or the stand-in).
+// The graph explorer: the site's home page (/), also served at /graph/ for older links. Runs against any build of
+// public/ (real Quartz or the stand-in).
 const graph = JSON.parse(fs.readFileSync(path.resolve("public/graph.json"), "utf8"));
 const notes = graph.nodes.filter((n: any) => n.type !== "Source" && n.type !== "Theme");
 const firstNote = notes[0];
@@ -22,7 +23,7 @@ function watchErrors(page: Page) {
   return errors;
 }
 const screenPos = (page: Page, id: string) => page.evaluate((i) => (window as any).kfExplorer.screenPos(i), id);
-const ready = async (page: Page, url = "/graph/") => {
+const ready = async (page: Page, url = "/") => {
   await page.goto(url);
   await expect(page.locator("#explorer")).toHaveAttribute("data-ready", "true");
 };
@@ -59,9 +60,12 @@ test("clicking a node opens the panel; Escape closes it", async ({ page }) => {
   await page.locator("#g-canvas").click({ position: { x, y } });
   await expect(page.locator("#g-panel h2")).toHaveText(firstNote.label);
   await expect(page).toHaveURL(/node=/);
-  // Essays open on muthub.org (the canonical essay); the wiki summary is the second link.
-  await expect(page.locator("#g-panel a.open")).toHaveAttribute("href", firstNote.canonical || firstNote.url);
-  if (firstNote.canonical) await expect(page.locator("#g-panel a.wiki")).toHaveAttribute("href", firstNote.url);
+  // "Open the note" is the wiki page; an essay also offers "Read the essay" on muthub.org (the canonical essay).
+  await expect(page.locator("#g-panel a.open")).toHaveAttribute("href", firstNote.url);
+  if (firstNote.canonical) await expect(page.locator("#g-panel a.wiki")).toHaveAttribute("href", firstNote.canonical);
+  // Provenance, straight from the note's frontmatter: never an invented review date.
+  await expect(page.locator("#g-panel .prov")).toContainText("Review");
+  await expect(page.locator("#g-panel .prov")).toContainText(firstNote.verified || firstNote.trust !== "unverified" ? /Reviewed|Machine-confirmed/ : "Not yet reviewed");
   await page.keyboard.press("Escape");
   await expect(page.locator("#g-panel")).toBeHidden();
   await expect(page).not.toHaveURL(/node=/);
@@ -99,7 +103,8 @@ test("search jumps to a note and zooms in; unknown text says so", async ({ page 
   await expect(page.locator("#g-status")).toContainText("No note matches");
 });
 
-test("filters change what is shown; reset restores the defaults", async ({ page }) => {
+test("filters change what is shown; reset restores the defaults", async ({ page, isMobile }) => {
+  test.skip(isMobile, "filters are desktop-only; phones get the theme chips and the list");
   await ready(page);
   await page.locator(".filters summary").click();
   await page.locator('#f-types input[value="Source"]').check();
@@ -115,9 +120,12 @@ test("filters change what is shown; reset restores the defaults", async ({ page 
 
 test("list view is a table of every shown node", async ({ page }) => {
   await ready(page);
-  await page.getByRole("button", { name: "List view" }).click();
-  await expect(page.locator("#g-list tbody tr")).toHaveCount(shownCount);
-  await expect(page.getByRole("button", { name: "Graph view" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "List", exact: true }).click();
+  await expect(page.locator("#g-list tbody tr:has(td)")).toHaveCount(shownCount - graph.nodes.filter((n: any) => n.type === "Theme").length); // themes are the group rows
+  await expect(page.getByRole("button", { name: "Graph", exact: true })).toHaveAttribute("aria-pressed", "true");
+  // The provenance table: grouped by theme, one column per frontmatter field.
+  await expect(page.locator("#g-list thead th")).toContainText(["Note", "Kind", "Source dated", "Review", "Re-check by", "Links"]);
+  await expect(page.locator("#g-list tbody th[scope=rowgroup]")).toHaveCount(graph.nodes.filter((n: any) => n.type === "Theme").length);
   const href = await page.locator("#g-list tbody a").first().getAttribute("href");
   expect(href).toMatch(/^(\/|https:\/\/)/);
 });
@@ -132,15 +140,44 @@ test("zoom buttons change the camera", async ({ page, isMobile }) => {
   await expect.poll(() => page.evaluate(() => (window as any).kfExplorer.cameraRatio())).toBeCloseTo(1, 1);
 });
 
-test("dark mode is shared with the Quartz pages (localStorage 'theme')", async ({ page }) => {
+test("dark by default; the toggle switches to light and the choice is shared with the Quartz pages", async ({ page }) => {
   await ready(page);
-  await page.getByRole("button", { name: "Toggle dark mode" }).click();
-  const theme = await page.evaluate(() => document.documentElement.getAttribute("saved-theme"));
-  expect(await page.evaluate(() => localStorage.getItem("theme"))).toBe(theme);
+  await expect(page.locator("html")).toHaveAttribute("saved-theme", "dark");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(15, 17, 20)");
+  await page.getByRole("button", { name: "Switch to light mode" }).click();
+  await expect(page.locator("html")).toHaveAttribute("saved-theme", "light");
+  expect(await page.evaluate(() => localStorage.getItem("theme"))).toBe("light");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(255, 255, 255)");
   await page.reload();
-  await expect(page.locator("html")).toHaveAttribute("saved-theme", theme!);
-  const bg = await page.evaluate(() => getComputedStyle(document.querySelector(".explorer")!).backgroundColor);
-  expect(bg).toBe(theme === "dark" ? "rgb(23, 26, 31)" : "rgb(246, 245, 242)");
+  await expect(page.locator("html")).toHaveAttribute("saved-theme", "light");
+  await expect(page.getByRole("button", { name: "Switch to dark mode" })).toBeVisible();
+});
+
+test("the home page around the graph is filled from graph.json", async ({ page }) => {
+  await ready(page);
+  const themeCount = graph.nodes.filter((n: any) => n.type === "Theme").length;
+  await expect(page.locator('[data-stat="notes"]')).toHaveText(String(notes.length));
+  await expect(page.locator('[data-stat="themes"]')).toHaveText(String(themeCount));
+  await expect(page.locator('[data-stat="connections"]')).toHaveText(String(graph.edges.filter((e: any) => e.origin !== "source").length));
+  await expect(page.locator("#theme-cards .theme-card")).toHaveCount(themeCount);
+  await expect(page.locator("#hubs li")).toHaveCount(5);
+  // Every reading-path essay resolved to a real note page (missing ones are dropped, never left pointing at /notes/).
+  for (const href of await page.locator("#paths [data-note]").evaluateAll((as) => as.map((a) => a.getAttribute("href")))) {
+    expect(href).not.toBe("/notes/");
+    expect((await page.request.get(href!)).status()).toBe(200);
+  }
+  // A hub opens that note in the explorer.
+  const first = page.locator("#hubs li").first();
+  const title = (await first.locator("a").textContent())!.trim();
+  await first.click();
+  await expect(page.locator("#g-panel h2")).toHaveText(title);
+  const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(over).toBeLessThanOrEqual(1);
+});
+
+test("/graph/ still serves the explorer for older links", async ({ page }) => {
+  await ready(page, "/graph/");
+  await expect(page.locator("#g-status")).toHaveText(new RegExp(`^${shownCount} nodes`));
 });
 
 test("the open-note link reaches the note page", async ({ page, request }) => {

@@ -116,7 +116,7 @@ class Stager:
         lines = [cfg["description"], "",
                  f"{len(notes)} notes, {reviewed} reviewed by Muthu so far. Each one shows its review state, when it was last verified and the sources it draws on. "
                  f"The essays themselves live on [muthub.org]({cfg['canonical_site']}).", "",
-                 f"[Explore the graph]({self.site}/graph/) · [llms.txt]({self.site}/llms.txt)", "", "## Themes", ""]
+                 f"[Explore the graph]({self.site}/) · [llms.txt]({self.site}/llms.txt)", "", "## Themes", ""]
         for t in self.b.themes():
             lines.append(f"- [{t['name']}](/{t['slug']}/): {t['description']} ({len(t['notes'])} note{'' if len(t['notes']) == 1 else 's'})")
         recent = sorted(notes, key=lambda n: last_verified(n.fm) or str((n.fm.get("generated") or {}).get("at", "")), reverse=True)[:8]
@@ -128,7 +128,9 @@ class Stager:
         if out.exists():
             shutil.rmtree(out)
         out.mkdir(parents=True)
-        (out / "index.md").write_text(self.home(), encoding="utf-8")
+        # The site's home (/) is the graph explorer, installed after the Quartz build; Quartz's own index lives at /notes/.
+        (out / "notes").mkdir()
+        (out / "notes" / "index.md").write_text(self.home(), encoding="utf-8")
         for t in self.b.themes():
             (out / t["slug"]).mkdir(exist_ok=True)
             (out / t["slug"] / "index.md").write_text(self.theme_index(t), encoding="utf-8")

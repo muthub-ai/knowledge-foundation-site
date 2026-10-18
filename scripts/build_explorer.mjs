@@ -14,6 +14,11 @@ const alias = {};
 if (i > 0) {
   const src = path.resolve(process.argv[i + 1]);
   Object.assign(alias, {
+    "sigma/rendering": path.join(src, "sigma.js/packages/sigma/src/rendering/index.ts"),
+    "sigma/primitives": path.join(src, "sigma.js/packages/sigma/src/primitives/index.ts"),
+    "sigma/types": path.join(src, "sigma.js/packages/sigma/src/types.ts"),
+    "sigma/utils": path.join(src, "sigma.js/packages/sigma/src/utils/index.ts"),
+    "sigma/settings": path.join(src, "sigma.js/packages/sigma/src/settings.ts"),
     sigma: path.join(src, "sigma.js/packages/sigma/src/index.ts"),
     graphology: path.join(src, "graphology/src/graphology/src/endpoint.esm.js"),
     "graphology-utils": path.join(src, "graphology/src/utils"),
