@@ -72,6 +72,12 @@ test("?node= opens on that note, and panel neighbours navigate", async ({ page }
   await ready(page, "/graph/?node=" + encodeURIComponent(target.id));
   await expect(page.locator("#g-panel h2")).toHaveText(target.label);
   await expect.poll(() => page.evaluate(() => (window as any).kfExplorer.selected())).toBe(target.id);
+  // The camera frames the note with its name: no part of the name is cut off at the screen edge.
+  await page.waitForTimeout(900);
+  const [l, r] = await page.evaluate((id) => (window as any).kfExplorer.labelBox(id), target.id);
+  const vw = await page.evaluate(() => document.getElementById("g-canvas")!.clientWidth);
+  expect(l, "name cut off on the left").toBeGreaterThanOrEqual(-2);
+  expect(r, "name cut off on the right").toBeLessThanOrEqual(vw + 2);
   const nb = page.locator("#g-panel li a").first();
   const name = await nb.locator(".t").textContent();
   await nb.click();

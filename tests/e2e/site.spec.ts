@@ -71,6 +71,11 @@ test("a note page shows the provenance callout, sources and JSON-LD", async ({ p
   await expect(page.locator("article")).not.toContainText(/\[\^|[.\w]\[(\s|$)/);
   await expect(page.locator("article .callout").first()).toContainText(/Reviewed by Muthu|Not yet reviewed|Machine-confirmed/);
   await expect(page.locator("article")).toContainText("Sources");
+  // Nothing peeks in from off screen (the closed note drawer on phones once showed the ends of its titles).
+  const peeking = await page.evaluate(() => [...document.querySelectorAll("body *")]
+    .filter((el) => { const r = el.getBoundingClientRect(); return el.children.length === 0 && (el.textContent || "").trim() && r.width > 0 && r.left < -1 && r.right > 1 && getComputedStyle(el).visibility === "visible"; })
+    .map((el) => (el.textContent || "").trim().slice(0, 40)));
+  expect(peeking, "text cut off at the left edge").toEqual([]);
   const ld = JSON.parse((await page.locator('script[data-kf="jsonld"]').textContent())!);
   expect([].concat(ld)[0]["@type"]).toBe("Article");
   await noHorizontalScroll(page);

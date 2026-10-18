@@ -326,26 +326,53 @@ const NARROW = () => container.clientWidth <= 760;
  * so the camera shifts to centre the nodes between them; on narrow screens the panel is a bottom sheet, so the nodes
  * go in the upper part. With `centre`, that node is kept at the centre and the zoom still fits the others.
  */
+// Width in screen pixels that a node's label (with its pill and the gap from the node) takes on each side of the node.
+const labelCtx = document.createElement("canvas").getContext("2d");
+function labelReach(id: string): { left: number; right: number } {
+  const a = graph.getNodeAttributes(id);
+  const text = String(a.label ?? "");
+  if (!labelCtx || !text) return { left: 0, right: 0 };
+  const theme = a.kind === "Theme";
+  labelCtx.font = theme ? `${Math.round(15 * Math.max(0.8, SIZE_SCALE))}px Newsreader, Georgia, serif` : "12.5px Instrument Sans, system-ui, sans-serif";
+  const w = labelCtx.measureText(text).width + 12 + (Number(a.size) || 6);
+  return a.labelSide === "left" ? { left: w, right: 0 } : a.labelSide === "right" ? { left: 0, right: w } : { left: w / 2, right: w / 2 };
+}
+/**
+ * Frame some nodes, leaving room for the chrome: on wide screens the legend (left) and the panel (right) take space,
+ * so the camera shifts to centre the nodes between them; on narrow screens the panel is a bottom sheet, so the nodes
+ * go in the upper part. With `centre`, that node is kept at the centre and the zoom still fits the others. Labels
+ * count too: the frame widens (zooms out) until the names at its edges fit on screen, not just their dots.
+ */
 function fitNodes(ids: string[], opts: { maxRatio?: number; besidePanel?: boolean; centre?: string } = {}) {
   const pts = ids.map((id) => renderer.getNodeDisplayData(id)).filter(Boolean);
   if (!pts.length) return;
   const xs = pts.map((p: any) => p.x), ys = pts.map((p: any) => p.y);
   const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
   const c = opts.centre ? renderer.getNodeDisplayData(opts.centre) : null;
-  const cx = c ? c.x : (x0 + x1) / 2, cy = c ? c.y : (y0 + y1) / 2;
+  let cx = c ? c.x : (x0 + x1) / 2;
+  const cy = c ? c.y : (y0 + y1) / 2;
   const span = c ? 2 * Math.max(cx - x0, x1 - cx, cy - y0, y1 - cy) : Math.max(x1 - x0, y1 - y0);
-  const ratio = Math.min(opts.maxRatio ?? 1, Math.max(0.25, span * 1.25));
+  let ratio = Math.min(opts.maxRatio ?? 1, Math.max(0.25, span * 1.25));
   // Screen pixels to camera units: sigma fits the graph to the smaller side minus the stage padding (measured: on a
   // 412 x 774 phone, 0.1 camera units move a node 31.6 px at ratio 1).
   const w = container.clientWidth || 1, h = container.clientHeight || 1;
-  const toCam = (px: number) => (px * ratio) / Math.max(1, Math.min(w, h) - 2 * 48);
+  const D = Math.max(1, Math.min(w, h) - 2 * 48);
+  const wide = !NARROW();
+  const panelPx = wide && opts.besidePanel && !panel.hidden ? panel.offsetWidth + 28 : 0;
+  const legendPx = wide && !legend.hidden && legend.offsetParent ? legend.offsetWidth + 28 : 0;
+  // Names stick out past the outermost dots: zoom out until they fit in the width left between the chrome.
+  let padL = 0, padR = 0;
+  // With `centre` (a selected note), only its own name counts, so a note with long-named neighbours is not zoomed out.
+  for (const id of c ? [opts.centre!] : ids) { const r = labelReach(id); padL = Math.max(padL, r.left); padR = Math.max(padR, r.right); }
+  const room = Math.max(120, w - panelPx - legendPx - 32 - padL - padR);
+  const width = c ? 2 * Math.max(cx - x0, x1 - cx) : x1 - x0;
+  ratio = Math.min(1.2, Math.max(ratio, (width * D) / room));
+  const toCam = (px: number) => (px * ratio) / D;
+  // Centre the whole picture, names included (for `centre`, only that node's own name moves the frame).
+  cx += toCam(padR - padL) / 2;
   let dx = 0, dy = 0;
-  if (!NARROW()) {
-    if (opts.besidePanel && !panel.hidden) dx += toCam((panel.offsetWidth + 28) / 2);
-    if (!legend.hidden && legend.offsetParent) dx -= toCam((legend.offsetWidth + 28) / 2);
-  } else if (opts.besidePanel && !panel.hidden) {
-    dy -= toCam(panel.offsetHeight / 2); // a lower camera lifts the nodes above the bottom sheet
-  }
+  if (wide) dx += toCam(panelPx / 2) - toCam(legendPx / 2);
+  else if (opts.besidePanel && !panel.hidden) dy -= toCam(panel.offsetHeight / 2); // a lower camera lifts the nodes above the bottom sheet
   renderer.getCamera().animate({ x: cx + dx, y: cy + dy, ratio }, { duration: T(700), easing: "cubicInOut" });
 }
 
@@ -704,6 +731,14 @@ fetch("/graph.json")
           if (!d) return null;
           const p = renderer.framedGraphToViewport({ x: d.x, y: d.y });
           return [p.x, p.y];
+        },
+        // Horizontal extent on screen of a node with its name: [left, right] in pixels.
+        labelBox: (id: string) => {
+          const d = renderer.getNodeDisplayData(id);
+          if (!d) return null;
+          const p = renderer.framedGraphToViewport({ x: d.x, y: d.y });
+          const r = labelReach(id);
+          return [p.x - Math.max(r.left, 6), p.x + Math.max(r.right, 6)];
         },
         selected: () => selected,
         cameraRatio: () => renderer.getCamera().ratio,
