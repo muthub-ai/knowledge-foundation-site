@@ -55,7 +55,7 @@ class StageFixture(unittest.TestCase):
         self.assertEqual(self.stats, {"notes": 2, "themes": 2})
         files = sorted(p.relative_to(self.out).as_posix() for p in self.out.rglob("*.md"))
         self.assertEqual(files, ["context-engineering/context-layer.md", "context-engineering/index.md",
-                                 "governed-ai/guardrails.md", "governed-ai/index.md", "index.md"])
+                                 "governed-ai/guardrails.md", "governed-ai/index.md", "notes/index.md"])
 
     def test_quartz_frontmatter(self):
         f = front(self.note)
@@ -104,12 +104,12 @@ class StageFixture(unittest.TestCase):
         self.assertIn("[^s1]: My essay, 2025.", self.note)
 
     def test_home_and_theme_pages(self):
-        home = (self.out / "index.md").read_text()
+        home = (self.out / "notes" / "index.md").read_text()
         self.assertEqual(front(home)["title"], "Muthu Bommiah's working knowledge")
         self.assertIn("- [Governed AI](/governed-ai/): ", home)
         self.assertIn("(1 note)", home)
         self.assertIn("2 notes, 1 reviewed by Muthu so far.", home)
-        self.assertIn("[Explore the graph](https://wiki.muthub.org/graph/)", home)
+        self.assertIn("[Explore the graph](https://wiki.muthub.org/)", home)
         self.assertIn("- [Guardrails by design](/governed-ai/guardrails)", home)  # recently updated
         theme = (self.out / "governed-ai" / "index.md").read_text()
         self.assertEqual(front(theme)["title"], "Governed AI")

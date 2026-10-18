@@ -51,14 +51,22 @@ async function noHorizontalScroll(page: Page) {
   expect(r.over, `wider than the screen by ${r.over}px: ${r.detail}`).toBeLessThanOrEqual(1);
 }
 
-test("home page: title, themes and a same-site link to the graph", async ({ page }) => {
-  await page.goto("/");
+test("notes index at /notes/: title, themes and a same-site link to the graph home", async ({ page }) => {
+  await page.goto("/notes/");
   await expect(page).toHaveTitle(/Knowledge Foundation/);
   await expect(page).not.toHaveTitle(/^Untitled|Knowledge Foundation · Knowledge Foundation/);
   await expect(page.locator("article")).toContainText("Themes");
   await expect(page.locator("article")).not.toContainText(/^\s*title:/m);
-  await expect(page.locator('article a[href$="/graph/"]').first()).toBeVisible();
+  await expect(page.locator('article a[href="/"]').first()).toBeVisible();
   await noHorizontalScroll(page);
+});
+
+test("Quartz pages are dark by default and remember a switch to light", async ({ page }) => {
+  await page.goto("/notes/");
+  await expect(page.locator("html")).toHaveAttribute("saved-theme", "dark");
+  await page.evaluate(() => localStorage.setItem("theme", "light"));
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("saved-theme", "light");
 });
 
 test("a note page shows the provenance callout, sources and JSON-LD", async ({ page }) => {
@@ -101,7 +109,7 @@ test("theme pages list their notes", async ({ page }) => {
 
 test("internal links on the home page and ten notes all resolve", async ({ page, request }) => {
   const seen = new Set<string>();
-  for (const url of ["/", ...notes.slice(0, 10).map((n: any) => n.url)]) {
+  for (const url of ["/", "/notes/", ...notes.slice(0, 10).map((n: any) => n.url)]) {
     await page.goto(url);
     const hrefs = await page.locator("a[href]").evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).href));
     for (const h of hrefs) {
@@ -120,11 +128,11 @@ test("machine-readable files", async ({ request }) => {
   }
 });
 
-test("dark mode carries over from a note to the graph explorer", async ({ page }) => {
+test("the theme carries over from a note to the graph home", async ({ page }) => {
   await page.goto(notes[0].url);
-  await page.evaluate(() => localStorage.setItem("theme", "dark"));
+  await page.evaluate(() => localStorage.setItem("theme", "light"));
   await page.reload();
-  await expect(page.locator("html")).toHaveAttribute("saved-theme", "dark");
-  await page.goto("/graph/");
-  await expect(page.locator("html")).toHaveAttribute("saved-theme", "dark");
+  await expect(page.locator("html")).toHaveAttribute("saved-theme", "light");
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("saved-theme", "light");
 });

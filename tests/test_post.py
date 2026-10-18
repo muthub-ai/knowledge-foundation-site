@@ -83,8 +83,16 @@ class PostFixture(unittest.TestCase):
         self.assertFalse((self.public / "raw").exists())
 
     def test_explorer_installed(self):
-        for f in ("graph/index.html", "graph/explorer.js", "graph/explorer.css", "graph/theme.js", "graph.json"):
+        for f in ("index.html", "graph/index.html", "graph/explorer.js", "graph/explorer.css", "graph/theme.js", "graph.json"):
             self.assertTrue((self.public / f).exists(), f)
+        self.assertEqual((self.public / "index.html").read_text(), (self.public / "graph" / "index.html").read_text())
+        self.assertTrue((self.public / "notes" / "index.html").exists())  # Quartz's own home moved to /notes/
+
+    def test_quartz_pages_default_to_dark(self):
+        for rel in ("notes/index.html", "governed-ai/guardrails.html"):
+            text = (self.public / rel).read_text()
+            self.assertEqual(text.count('data-kf="theme"'), 1, rel)
+            self.assertLess(text.index('data-kf="theme"'), text.index("<title>"), rel)  # before Quartz's own scripts
 
     def test_output_is_clean(self):
         self.assertEqual(check_output(self.public, self.bundle), [])  # Quartz's own footer em dash is not ours to police

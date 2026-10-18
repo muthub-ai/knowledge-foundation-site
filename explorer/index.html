@@ -3,58 +3,178 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Graph · Knowledge Foundation</title>
-<meta name="description" content="An interactive map of the Knowledge Foundation notes, their sources and how they connect.">
-<link rel="canonical" href="https://wiki.muthub.org/graph">
+<title>Knowledge Foundation · every essay, every source, every connection</title>
+<meta name="description" content="Muthu Bommiah's working knowledge on governed AI, context engineering and AI-native software delivery, as a graph you can walk. Every note carries a dated source and its review state.">
+<link rel="canonical" href="https://wiki.muthub.org/">
+<meta property="og:title" content="Knowledge Foundation">
+<meta property="og:description" content="Every essay, every source, every connection between them. A living knowledge graph kept by Muthu Bommiah.">
+<meta property="og:site_name" content="Knowledge Foundation">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7' fill='%230b6b7a'/%3E%3Ccircle cx='6' cy='8' r='3' fill='%23b5650f'/%3E%3Ccircle cx='26' cy='9' r='3' fill='%233d4fc4'/%3E%3Ccircle cx='24' cy='25' r='3' fill='%23b2306b'/%3E%3C/svg%3E">
+<link rel="alternate" type="application/rss+xml" title="Knowledge Foundation" href="/index.xml">
 <link rel="stylesheet" href="/graph/explorer.css">
 <script src="/graph/theme.js"></script>
 </head>
 <body>
-<a class="skip" href="#g-search">Skip to the graph search</a>
+<a class="skip" href="#g-search">Skip to the search</a>
 <header class="bar">
-  <a class="brand" href="/">Knowledge Foundation</a>
-  <nav aria-label="Main">
-    <a href="/">Notes</a>
-    <a href="https://muthub.org/writing">Essays</a>
-    <button class="theme-toggle" type="button" aria-label="Toggle dark mode">◐</button>
-  </nav>
+  <div class="wrap bar-row">
+    <a class="brand" href="/">Knowledge Foundation</a>
+    <nav aria-label="Main">
+      <a href="/" aria-current="page">Graph</a>
+      <a href="/notes/">Notes</a>
+      <a href="https://muthub.org/writing">Essays on muthub.org</a>
+      <a href="#how">How it works</a>
+    </nav>
+    <button class="theme-toggle" type="button" aria-label="Switch to light mode">☼ Light</button>
+  </div>
 </header>
-<main class="explorer" id="explorer">
-  <h1 class="sr">Graph</h1>
-  <div class="toolbar">
-    <label class="sr" for="g-search">Find a note</label>
-    <div class="search">
-      <input id="g-search" type="search" placeholder="Find a note" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="g-suggest">
-      <kbd aria-hidden="true">/</kbd>
-      <ul id="g-suggest" class="suggest" role="listbox" aria-label="Matching notes" hidden></ul>
-    </div>
-    <details class="filters"><summary>Filters</summary>
-      <div class="filters-pop">
-        <fieldset id="f-types"><legend>Node types</legend></fieldset>
-        <fieldset id="f-origins"><legend>Connections</legend></fieldset>
+
+<main class="page">
+  <section class="hero wrap">
+    <div class="hero-copy">
+      <p class="eyebrow">A living knowledge graph · kept by Muthu Bommiah</p>
+      <h1>Every essay, every source, every connection between them.</h1>
+      <p class="lede"><span data-stat="notes-words">Fifty-one</span> notes on governed AI, context engineering and AI-native software delivery. An LLM librarian drafts and files them; every claim is footnoted to a dated source; nothing is marked reviewed until Muthu reviews it.</p>
+      <div class="search" role="search">
+        <label class="sr" for="g-search">Find a note or essay</label>
+        <input id="g-search" type="search" placeholder="Find a note or essay, e.g. MCP registry" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="g-suggest">
+        <kbd aria-hidden="true">/</kbd>
+        <ul id="g-suggest" class="suggest" role="listbox" aria-label="Matching notes" hidden></ul>
       </div>
-    </details>
-    <button id="g-view" type="button" aria-pressed="false">List view</button>
-    <button id="g-reset" type="button">Reset</button>
-  </div>
-  <div id="g-canvas" class="g-canvas" role="img" aria-label="Knowledge graph. Use the list view for a text version."></div>
-  <div id="g-list" class="g-list" hidden></div>
-  <nav id="g-legend" class="legend" aria-label="Themes" hidden></nav>
-  <aside id="g-panel" class="g-panel" hidden aria-label="Selected note"></aside>
-  <div id="g-empty" class="g-empty" hidden><p>Nothing to show: every node type is filtered out.</p><button id="g-empty-reset" type="button">Reset filters</button></div>
-  <p id="g-announce" class="sr" aria-live="polite"></p>
-  <div class="zoom" role="group" aria-label="Zoom">
-    <button id="g-zoom-in" type="button" aria-label="Zoom in">+</button>
-    <button id="g-zoom-out" type="button" aria-label="Zoom out">−</button>
-    <button id="g-fit" type="button" aria-label="Fit the whole graph">⤢</button>
-  </div>
-  <p id="g-status" class="g-status" aria-live="polite"></p>
-  <noscript><p class="g-status">The graph needs JavaScript. <a href="/graph.json">The graph data</a> is available as JSON.</p></noscript>
+      <p class="ctas">
+        <a class="btn btn-primary" href="#explorer">Explore the graph</a>
+        <a class="btn" href="#paths">Three ways in</a>
+      </p>
+      <dl class="stats">
+        <div><dt>Notes</dt><dd data-stat="notes">51</dd></div>
+        <div><dt>Dated sources</dt><dd data-stat="sources">51</dd></div>
+        <div><dt>Connections</dt><dd data-stat="connections">133</dd></div>
+        <div><dt>Themes</dt><dd data-stat="themes">5</dd></div>
+      </dl>
+    </div>
+
+    <section class="explorer frame" id="explorer" aria-label="Graph explorer">
+      <div class="toolbar">
+        <nav id="g-legend" class="legend" aria-label="Themes" hidden></nav>
+        <div class="tools">
+          <details class="filters"><summary>Filters</summary>
+            <div class="filters-pop">
+              <fieldset id="f-types"><legend>Node types</legend></fieldset>
+              <fieldset id="f-origins"><legend>Connections</legend></fieldset>
+            </div>
+          </details>
+          <button id="g-view" type="button" aria-pressed="false">List</button>
+          <button id="g-reset" type="button">Reset</button>
+          <button id="g-full" type="button" aria-label="Full screen">⤢</button>
+        </div>
+      </div>
+      <div id="g-canvas" class="g-canvas" role="img" aria-label="Knowledge graph. Use the list view for a text version."></div>
+      <div id="g-list" class="g-list" hidden></div>
+      <aside id="g-panel" class="g-panel" hidden aria-label="Selected note"></aside>
+      <div id="g-empty" class="g-empty" hidden><p>Nothing to show: every node type is filtered out.</p><button id="g-empty-reset" type="button">Reset filters</button></div>
+      <p id="g-announce" class="sr" aria-live="polite"></p>
+      <div class="zoom" role="group" aria-label="Zoom">
+        <button id="g-zoom-in" type="button" aria-label="Zoom in">+</button>
+        <button id="g-zoom-out" type="button" aria-label="Zoom out">−</button>
+        <button id="g-fit" type="button" aria-label="Fit the whole graph">⤢</button>
+      </div>
+      <p id="g-status" class="g-status" aria-live="polite"></p>
+      <p class="hint">Drag to pan · scroll to zoom · click a node · double-click to open</p>
+      <noscript><p class="g-status">The graph needs JavaScript. <a href="/graph.json">The graph data</a> is available as JSON, and <a href="/notes/">the notes</a> are a plain list.</p></noscript>
+    </section>
+  </section>
+
+  <section id="how" class="band" aria-labelledby="how-h">
+    <div class="wrap">
+      <div class="band-head">
+        <h2 id="how-h">How a note gets here</h2>
+        <p class="muted">Open source end to end · <a href="https://github.com/muthub-ai/knowledge-foundation">repository</a> · <a href="https://github.com/muthub-ai/knowledge-foundation/tree/main/decisions">decision records</a></p>
+      </div>
+      <ol class="steps">
+        <li><p class="step-n">01 · Capture</p><p class="step-t">A source with a date</p><p class="step-d">An essay, a paper, a talk. Nothing enters without its publication date and licence.</p></li>
+        <li><p class="step-n">02 · Librarian</p><p class="step-t">LLM-Wiki-V2, CROW mode</p><p class="step-d">A local classifier decides where a note belongs; Claude writes it. Cost per note stays flat as the wiki grows.</p></li>
+        <li><p class="step-n">03 · Format</p><p class="step-t">Open Knowledge Format v0.2</p><p class="step-d">Markdown with provenance in the frontmatter, kept in Git. Any tool can read it; nothing is locked in.</p></li>
+        <li><p class="step-n">04 · Review</p><p class="step-t">Checks, then a human</p><p class="step-d">Schema, dates, links and a confidential-terms scan on every change. Only Muthu's approval marks a note reviewed.</p></li>
+        <li><p class="step-n">05 · Graph</p><p class="step-t">NetworkX, with Semantica</p><p class="step-d">A deterministic graph of notes, sources and relations; Semantica adds extracted entities, kept apart and labelled.</p></li>
+        <li><p class="step-n">06 · Publish</p><p class="step-t">Quartz 5 and Sigma.js 4</p><p class="step-d">Each merge cuts a release; this site and graph rebuild from it. Markdown twins and llms.txt for machines.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="paths" class="wrap section" aria-labelledby="paths-h">
+    <h2 id="paths-h">Three ways in</h2>
+    <p class="muted intro">Curated paths through the graph, four essays each. Pick the one that matches your seat.</p>
+    <div class="cards3">
+      <article class="card path-leaders">
+        <p class="path-k">If you lead AI in a regulated enterprise</p>
+        <h3>From pilots to a portfolio</h3>
+        <ol>
+          <li><a data-note="leading-ai-change/an-ai-operating-model-for-a-bank-ten-decisions-to-make.md" href="/notes/">An AI operating model for a bank: ten decisions</a></li>
+          <li><a data-note="leading-ai-change/gating-ai-investment-eight-gates-from-pilot-to-production.md" href="/notes/">Gating AI investment: eight gates from pilot to production</a></li>
+          <li><a data-note="governed-ai/architecture-that-runs-why-ai-era-governance-must-be-code.md" href="/notes/">Architecture that runs: why AI-era governance must be code</a></li>
+          <li><a data-note="leading-ai-change/ai-is-an-amplifier-not-a-silver-bullet.md" href="/notes/">AI is an amplifier, not a silver bullet</a></li>
+        </ol>
+        <a class="more" data-path-start="leading-ai-change/an-ai-operating-model-for-a-bank-ten-decisions-to-make.md" href="#explorer">Follow this path →</a>
+      </article>
+      <article class="card path-builders">
+        <p class="path-k">If you build the platforms</p>
+        <h3>Agents, tools and the control points</h3>
+        <ol>
+          <li><a data-note="governed-ai/adopting-mcp-in-a-bank-the-four-risks-to-solve-first.md" href="/notes/">Adopting MCP in a bank: the four risks to solve first</a></li>
+          <li><a data-note="governed-ai/designing-an-enterprise-mcp-registry-the-control-point.md" href="/notes/">Designing an enterprise MCP registry</a></li>
+          <li><a data-note="governed-ai/securing-ai-agents-identity-not-secrets.md" href="/notes/">Securing AI agents: identity, not secrets</a></li>
+          <li><a data-note="data-ai-platforms/agent-first-data-architecture-five-principles.md" href="/notes/">Agent-first data architecture: five principles</a></li>
+        </ol>
+        <a class="more" data-path-start="governed-ai/adopting-mcp-in-a-bank-the-four-risks-to-solve-first.md" href="#explorer">Follow this path →</a>
+      </article>
+      <article class="card path-method">
+        <p class="path-k">If you want to know how this wiki works</p>
+        <h3>Context, provenance and a wiki that writes itself</h3>
+        <ol>
+          <li><a data-note="context-engineering/self-describing-knowledge-why-the-open-knowledge-format.md" href="/notes/">Self-describing knowledge: why the Open Knowledge Format matters</a></li>
+          <li><a data-note="context-engineering/passive-capture-knowledge-that-writes-itself-with-humans-who.md" href="/notes/">Passive capture: knowledge that writes itself</a></li>
+          <li><a data-note="governed-ai/if-you-can-t-prove-why-an-ai-wrote-it-you-can-t-ship-it.md" href="/notes/">If you can't prove why an AI wrote it, you can't ship it</a></li>
+          <li><a data-note="context-engineering/the-cost-of-unmanaged-context.md" href="/notes/">The cost of unmanaged context</a></li>
+        </ol>
+        <a class="more" data-path-start="context-engineering/self-describing-knowledge-why-the-open-knowledge-format.md" href="#explorer">Follow this path →</a>
+      </article>
+    </div>
+  </section>
+
+  <section id="themes" class="wrap section" aria-labelledby="themes-h">
+    <h2 id="themes-h">Enter by theme</h2>
+    <div id="theme-cards" class="cards5"><p class="muted">Loading the themes…</p></div>
+  </section>
+
+  <section class="wrap section hubs" aria-labelledby="hubs-h">
+    <div class="hubs-list">
+      <h2 id="hubs-h">Most connected</h2>
+      <ol id="hubs" class="ranked"><li class="muted">Loading…</li></ol>
+    </div>
+    <aside class="card legend-aside" aria-labelledby="key-h">
+      <h2 id="key-h">Reading the map</h2>
+      <ul class="key">
+        <li><span class="key-theme" aria-hidden="true"></span>A theme: one of the five folders the librarian files into</li>
+        <li><span class="key-note" aria-hidden="true"></span>A note, coloured by its theme; bigger means more connections</li>
+        <li><span class="key-shapes" aria-hidden="true"><span class="shape shape-circle"></span><span class="shape shape-diamond"></span><span class="shape shape-square"></span></span>Essay, initiative, playbook</li>
+        <li><span class="key-ring" aria-hidden="true"></span>A ring: reviewed by Muthu, with the date</li>
+        <li><span class="key-line" aria-hidden="true"></span>A link in the text, or a declared relation</li>
+        <li><span class="key-dash" aria-hidden="true"></span>An entity Semantica extracted (off by default)</li>
+      </ul>
+      <p class="muted small">Every note is also plain Markdown at its address plus <code>.md</code>; the whole wiki is in <a href="/llms.txt">llms.txt</a>. Text under CC BY 4.0.</p>
+    </aside>
+  </section>
 </main>
+
+<footer class="foot">
+  <div class="wrap foot-row">
+    <p>Knowledge Foundation · Muthu Bommiah · the essays live on <a href="https://muthub.org">muthub.org</a></p>
+    <p><a href="https://github.com/muthub-ai/knowledge-foundation">Source on GitHub</a> · <a href="/graph.json">graph.json</a> · <a href="/llms.txt">llms.txt</a> · <a href="/index.xml">RSS</a></p>
+  </div>
+</footer>
 <script src="/graph/explorer.js" defer></script>
 </body>
 </html>

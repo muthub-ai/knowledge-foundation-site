@@ -1,6 +1,6 @@
 # Graph explorer: design notes
 
-The explorer at `/graph/` is Sigma.js 4 (WebGL) over graphology. This note records the design choices and the research
+The explorer (the home page, also at `/graph/`) is Sigma.js 4 (WebGL) over graphology. This note records the design choices and the research
 behind them (October 2026), so later changes keep the same intent.
 
 ## What we looked at
@@ -66,3 +66,18 @@ behind them (October 2026), so later changes keep the same intent.
 - Sigma.js 4: [Camera and viewport](https://www.sigmajs.org/how-to/interactivity/camera-viewport/),
   [Styles and primitives](https://www.sigmajs.org/concepts/styles-and-primitives/),
   [Hover and search highlight](https://www.sigmajs.org/how-to/interactivity/hover-search/)
+
+## The home page around it (October 2026 redesign)
+
+The graph became the wiki's front door, from a signed-off design (three concepts; the chosen one: editorial copy beside
+a framed explorer, dark by default with a header toggle). Rules it fixed:
+
+- Nothing on the page is typed by hand except the copy and the three reading paths; counts, theme cards, the "most
+  connected" list and the inspector's provenance all come from `graph.json` (`fillPage()`), so the page stays true as
+  the wiki grows. Review state says "Not yet reviewed" until a human verification exists in the note.
+- The frame is narrow in the hero, so the phone layout (bottom-sheet panel) keys off the page width, not the frame's.
+  The theme chips are a strip along the top; the inspector is a card at the bottom right (bottom sheet on phones).
+- Colours stay in `THEME_LIGHT`/`THEME_DARK`; every dot on the page carries `data-theme-dot` so a theme switch repaints
+  the chips and cards along with the map. The CSP still forbids inline styles.
+- Dark is the default on the Quartz pages too: `post.py` injects a one-line script before Quartz's own, so the first
+  visit is dark and a toggle on either side is remembered by both (`localStorage.theme`).

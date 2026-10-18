@@ -1,10 +1,11 @@
 """After `quartz build`: finish the site in public/.
 
-- checks Quartz produced a page for every note, theme and the home page (a missing page fails the build)
+- checks Quartz produced a page for every note, theme and the notes index at /notes/ (a missing page fails the build)
 - adds JSON-LD (Article; DefinedTerm for concepts) to every note page
 - turns links written as https://<wiki>/... (the ones Quartz would otherwise mangle) back into same-site links
 - writes the Markdown twin of every note (the OKF file itself), llms.txt and robots.txt
-- installs the Sigma graph explorer at /graph/ with graph.json
+- installs the graph explorer as the home page (/) and at /graph/ (older links), with graph.json
+- makes dark the default for first-time readers of the Quartz pages too (the explorer's theme.js does the same for /)
 """
 
 from __future__ import annotations
@@ -19,6 +20,9 @@ from .bundle import Bundle, slug_of
 ROOT = Path(__file__).resolve().parents[1]
 EXPLORER = ROOT / "explorer"
 LD_MARK = 'data-kf="jsonld"'
+# Runs before Quartz's own darkmode script, which reads localStorage.theme: a reader with no stored choice gets dark,
+# the same default theme.js applies on the graph pages. Toggling on either side is remembered by both.
+DARK_DEFAULT = '<script data-kf="theme">try{if(!localStorage.getItem("theme"))localStorage.setItem("theme","dark")}catch(e){}</script>'
 
 
 class BuildError(RuntimeError):
@@ -55,7 +59,7 @@ def finish(bundle: Bundle, graph_json: Path, public: Path) -> dict[str, int]:
     site = cfg["site_url"].rstrip("/")
     notes, themes = bundle.notes(), bundle.themes()
 
-    expected = {"index": page_file(public, "index")}
+    expected = {"notes/index": page_file(public, "notes/index")}
     expected.update({f"{t['slug']}/index": page_file(public, f"{t['slug']}/index") for t in themes})
     expected.update({slug_of(n.rel): page_file(public, slug_of(n.rel)) for n in notes})
     missing = sorted(s for s, f in expected.items() if not f.exists())
@@ -75,6 +79,8 @@ def finish(bundle: Bundle, graph_json: Path, public: Path) -> dict[str, int]:
     for f in public.rglob("*.html"):
         text = f.read_text(encoding="utf-8")
         fixed = same_site_links(text, site)
+        if 'data-kf="theme"' not in fixed and "<head>" in fixed:
+            fixed = fixed.replace("<head>", "<head>" + DARK_DEFAULT, 1)
         if fixed != text:
             f.write_text(fixed, encoding="utf-8")
 
@@ -100,6 +106,8 @@ def finish(bundle: Bundle, graph_json: Path, public: Path) -> dict[str, int]:
     if not bundle_js.exists():
         raise BuildError("explorer/dist/explorer.js is missing: run `npm run build:explorer`")
     shutil.copy(bundle_js, gdir / "explorer.js")
+    # The same page is the site's home; its asset links are absolute (/graph/...), so one copy serves both addresses.
+    shutil.copy(EXPLORER / "index.html", public / "index.html")
     return {"pages": len(expected), "notes": len(notes)}
 
 
