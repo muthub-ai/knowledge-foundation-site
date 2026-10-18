@@ -101,6 +101,9 @@ class StageFixture(unittest.TestCase):
         self.assertEqual(sources, "1. [My essay](https://muthub.org/writing/my-essay) · published May 1, 2025\n"
                                   "2. [Vendor post](https://example.com/post) · published Jan 2, 2026")
         self.assertTrue(self.note.rstrip().endswith("## See also\n\n- [Context layer](/context-engineering/context-layer) - where facts live"))
+        # Typed frontmatter relations lead See also, labelled; unknown types are not shown.
+        layer = (self.out / "context-engineering" / "context-layer.md").read_text()
+        self.assertTrue(layer.rstrip().endswith("## See also\n\n- **Applies** [Guardrails by design](/governed-ai/guardrails)"))
         self.assertIn("[^s1]: My essay, 2025.", self.note)
 
     def test_home_and_theme_pages(self):
