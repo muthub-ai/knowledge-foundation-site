@@ -35,6 +35,7 @@ def make_bundle(root: Path) -> Path:
     (w / "context-engineering" / "context-layer.md").write_text(fm(
         type="Concept", title="Context layer <script>alert(1)</script>", description="Facts & rules", kind="Pattern", status="draft",
         generated=GEN, stale_after="2027-04-10", tags=[], sources=[{"id": "s1", "resource": "/raw/third.md"}],
+        relations=[{"type": "applies", "target": "/governed-ai/guardrails.md"}, {"type": "inspired_by", "target": "/governed-ai/guardrails.md"}],
     ) + "# Overview\n\nBody, linking back to [guardrails](/governed-ai/guardrails.md).\n")
     (root / "graph.json").write_text(json.dumps({"version": "1", "nodes": [
         {"id": "governed-ai/guardrails.md", "type": "Concept", "label": "Guardrails by design", "url": "/governed-ai/guardrails", "summary": "s",

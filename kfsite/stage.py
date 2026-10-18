@@ -23,6 +23,9 @@ import yaml
 
 from .bundle import MD_LINK, Bundle, Doc, html_url, human_day, last_verified, resolve, trust_tier, url_of
 
+# Typed relations from a note's frontmatter, shown at the top of See also (the graph draws them as solid edges).
+RELATION_LABEL = {"builds_on": "Builds on", "refines": "Refines", "applies": "Applies", "contradicts": "Disagrees with",
+                  "cites": "Cites", "part_of": "Part of", "about": "About", "supersedes": "Replaces", "answers": "Answers"}
 SEE_ALSO = re.compile(r"(?:^|\n)# See also\n(?P<list>[\s\S]*)$")
 CALLOUT = {"human-reviewed": ("success", "Reviewed by Muthu"), "machine-confirmed": ("info", "Machine-confirmed, not yet reviewed"),
            "unverified": ("info", "Not yet reviewed")}
@@ -97,8 +100,16 @@ class Stager:
                 title_md = f"[{s['title']}]({s['url']})" if s["url"] else s["title"]
                 lines.append(f"{len(lines) + 1}. {title_md}" + (f" · published {s['published']}" if s["published"] else ""))
             parts.append("## Sources\n\n" + "\n".join(lines))
+        see_also = self.relink(d, see_also) if see_also else ""
+        declared = []
+        for r in fm.get("relations") or []:
+            target = self.b.docs.get(resolve(d.rel, str(r.get("target", "")))) if isinstance(r, dict) else None
+            label = RELATION_LABEL.get(str(r.get("type"))) if isinstance(r, dict) else None
+            if target and not target.is_raw and label and f"({target.url})" not in see_also:
+                declared.append(f"- **{label}** [{target.title}]({target.url})")
+        see_also = "\n".join(declared + ([see_also] if see_also else []))
         if see_also:
-            parts.append("## See also\n\n" + self.relink(d, see_also))
+            parts.append("## See also\n\n" + see_also)
 
         out_fm: dict[str, Any] = {"title": d.title, "description": d.description, "tags": [str(t) for t in fm.get("tags") or []]}
         if gen.get("at"):

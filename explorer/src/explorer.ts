@@ -438,10 +438,11 @@ function mentionCount(id: string) {
   graph.forEachEdge(id, (_e, a: any) => { if (a.origin === "extracted") n++; });
   return n;
 }
+// Distinct notes connected by a link or a declared relation (a pair linked both ways counts once, as the panel shows it).
 function linkCount(id: string) {
-  let n = 0;
-  graph.forEachEdge(id, (_e, a: any) => { if (a.origin === "link" || a.origin === "frontmatter") n++; });
-  return n;
+  const others = new Set<string>();
+  graph.forEachEdge(id, (_e, a: any, s, t) => { if (a.origin === "link" || a.origin === "frontmatter") others.add(s === id ? t : s); });
+  return others.size;
 }
 function openPanel(id: string) {
   selected = id;
@@ -458,7 +459,7 @@ function openPanel(id: string) {
     const m = (rows[g] ||= new Map());
     const r = m.get(other) || { out: false, inn: false, rel: new Set<string>() };
     out ? (r.out = true) : (r.inn = true);
-    if (relLabel(a.rel)) r.rel.add(g === SUGGESTED ? (out ? relLabel(a.rel) : `${relLabel(a.rel)} (from it)`) : relLabel(a.rel));
+    if (relLabel(a.rel) && a.rel !== "mentions") r.rel.add(g === SUGGESTED && !out ? `${relLabel(a.rel)} this note` : relLabel(a.rel));
     if (a.evidence && g === SUGGESTED) (r as any).ev = a.evidence;
     m.set(other, r);
   };
